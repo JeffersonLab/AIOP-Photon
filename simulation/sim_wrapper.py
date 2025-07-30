@@ -72,18 +72,6 @@ htilt = make_beamtilt(base_args)[0]
 
 # Function to extract x-position of peak (in GeV)
 def compute_peak_energy(thetah, thetav, args, polarized=0):
-    #hlist = ROOT.cobrems_intensity(
-    #    args['radname'], args['iradview'],
-    #    args['ebeam'], args['ibeam'],
-    #    args['xyresol'],
-    #    thetah, thetav,
-    #    args['xoffset'], args['yoffset'],
-    #    args['phideg'],
-    #    args['xsigma'], args['ysigma'],
-    #    args['xycorr'], args['peresol'],
-    #    args['penergy0'], args['penergy1'],
-    #    polarized
-    #)
 
     args = base_args.copy()
     args["thetah"] = thetah
