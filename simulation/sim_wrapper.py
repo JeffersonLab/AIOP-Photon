@@ -15,6 +15,10 @@ parser.add_argument('--config', type=str, choices=['PARA', 'PERP'], required=Tru
                     help='Polarization configuration: PARA or PERP')
 parser.add_argument('--phi', type=str, choices=['0/90', '45/135'], required=True,
                     help='Orientation configuration: 0/90 or 45/135')
+parser.add_argument('--beamx', type=float, required=False,
+                    help='Beam x position in mm')
+parser.add_argument('--beamy', type=float, required=False,
+                    help='Beam y position in mm')
 args_cli = parser.parse_args()
 
 nominal_edge = args_cli.edge
