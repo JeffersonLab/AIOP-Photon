@@ -146,13 +146,15 @@ with open(outfilename, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(["thetah", "thetav", "beamx", "beamy", "phideg", "peak_energy"])
 
+    phideg_rad = np.rad2deg(phideg)
+    
     for c in c_vals:
         if pol_dir=="PERP":
-            thetah = thetah_0 - c*np.cos(base_args['phideg'])
-            thetav = thetav_0 + c*np.sin(base_args['phideg'])
+            thetah = thetah_0 - c*np.cos(phideg_rad)
+            thetav = thetav_0 + c*np.sin(phideg_rad)
         else:
-            thetah = thetah_0 + c*np.sin(base_args['phideg'])
-            thetav = thetav_0 + c*np.cos(base_args['phideg'])            
+            thetah = thetah_0 + c*np.sin(phideg_rad)
+            thetav = thetav_0 + c*np.cos(phideg_rad)            
         peak_energy, beamx, beamy = compute_peak_energy(thetah, thetav, base_args)
         writer.writerow([thetah, thetav, beamx, beamy, base_args['phideg'], peak_energy])
         print(f"ThetaH={thetah:.5f}, ThetaV={thetav:.5f}, Phi={base_args['phideg']:3}° → Peak = {peak_energy:.5f} GeV")
