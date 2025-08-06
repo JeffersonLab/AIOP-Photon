@@ -4,7 +4,22 @@ import csv
 import numpy as np
 import ROOT
 import time
-from spotfinder import make_beamtilt, fill_cobrems_polarintensity
+import argparse
+from spotfinder import make_beamtilt, fill_cobrems_polarintensity, snap_crystal_orientation
+
+# Command line parsing
+parser = argparse.ArgumentParser(description="Simulate coherent bremsstrahlung spectrum vs tilt")
+parser.add_argument('--edge', type=float, required=True,
+                    help='Nominal coherent edge energy in GeV')
+parser.add_argument('--config', type=str, choices=['PARA', 'PERP'], required=True,
+                    help='Polarization configuration: PARA or PERP')
+parser.add_argument('--phi', type=str, choices=['0/90', '45/135'], required=True,
+                    help='Orientation configuration: 0/90 or 45/135')
+args_cli = parser.parse_args()
+
+nominal_edge = args_cli.edge
+pol_dir = args_cli.config.upper()
+orientation = args_cli.phi
 
 # Load ROOT macros and shared libraries
 ROOT.gSystem.AddDynamicPath(os.environ.get('COBREMS_WORKER', '.'))
@@ -23,12 +38,6 @@ ROOT.cobrems.setCollimatorDistance(76.0)
 ROOT.cobrems.setCollimatorDiameter(3.4e-3)
 ROOT.cobrems.setTargetCrystal("diamond")
 ROOT.cobrems.setTargetThickness(50e-6)
-
-# ==== USER INPUT: Set polarization configuration ====
-pol_dir = "PARA"          # options: "PARA", "PERP"
-orientation = "0/90"      # options: "0/90", "45/135"
-pitch_0, yaw_0 = 1.5, 1.5 # initial values of pitch and yaw to sweep around
-# ====================================================
 
 # Determine phideg from configuration
 phi_map = {
@@ -63,7 +72,17 @@ base_args = {
     "coldiam": 3.4,
     "coldist": 76,
     "radthick": 50,
+    "snapedge": nominal_edge,
+    'snapact': 'snap_para' if pol_dir == 'PARA' else 'snap_perp',
+    "beamx_noise": 0.1,  # mm
+    "beamy_noise": 0.1,  # mm
 }
+
+#snap the thetah and thetav into place
+status, output = snap_crystal_orientation(base_args)
+thetah_str, thetav_str = output[0].decode().split(",")
+thetah_0 = float(thetah_str.strip())
+thetav_0 = float(thetav_str.strip())
 
 # Precompute the tiltspot histogram once 
 print("Precomputing beam tilt histogram...")
@@ -77,6 +96,15 @@ def compute_peak_energy(thetah, thetav, args, polarized=0):
     args["thetah"] = thetah
     args["thetav"] = thetav
 
+    # Apply beam jitter
+    beamx = np.random.normal(args["xoffset"], args["beamx_noise"])
+    beamy = np.random.normal(args["yoffset"], args["beamy_noise"])
+    args["xoffset"] = beamx
+    args["yoffset"] = beamy
+
+    print(args["thetah"])
+    print(args["thetav"])    
+    
     hlist = fill_cobrems_polarintensity(args, nsamples=100, htilt=htilt)
     
     h_coh = hlist[1]
@@ -107,10 +135,10 @@ def compute_peak_energy(thetah, thetav, args, polarized=0):
         peak_energy = np.nan
         peak_enhancement = np.nan
     
-    return peak_energy
+    return peak_energy, beamx, beamy
 
 # Sweep through angles
-c_vals = np.linspace(0, 0.5, 50)
+c_vals = np.linspace(0, 50, 50)
 
 # Output CSV
 outfilename = f"coherent_peaks_{pol_dir}_{orientation.replace('/', '-')}.csv"
@@ -120,11 +148,11 @@ with open(outfilename, "w", newline="") as csvfile:
 
     for c in c_vals:
         if pol_dir=="PERP":
-            thetah = pitch_0 - c*np.cos(base_args['phideg'])
-            thetav = yaw_0 + c*np.sin(base_args['phideg'])
+            thetah = thetah_0 - c*np.cos(base_args['phideg'])
+            thetav = thetav_0 + c*np.sin(base_args['phideg'])
         else:
-            thetah = pitch_0 + c*np.sin(base_args['phideg'])
-            thetav = yaw_0 + c*np.cos(base_args['phideg'])            
-        peak_energy = compute_peak_energy(thetah, thetav, base_args)
-        writer.writerow([thetah, thetav, base_args['xoffset'], base_args['yoffset'], base_args['phideg'], peak_energy])
+            thetah = thetah_0 + c*np.sin(base_args['phideg'])
+            thetav = thetav_0 + c*np.cos(base_args['phideg'])            
+        peak_energy, beamx, beamy = compute_peak_energy(thetah, thetav, base_args)
+        writer.writerow([thetah, thetav, beamx, beamy, base_args['phideg'], peak_energy])
         print(f"ThetaH={thetah:.5f}, ThetaV={thetav:.5f}, Phi={base_args['phideg']:3}° → Peak = {peak_energy:.5f} GeV")
