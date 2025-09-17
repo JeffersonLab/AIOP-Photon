@@ -6,6 +6,7 @@ import ROOT
 import time
 import argparse
 from spotfinder import make_beamtilt, fill_cobrems_polarintensity, snap_crystal_orientation
+from damage_model import DiamondDamageModel
 
 # Command line parsing
 parser = argparse.ArgumentParser(description="Simulate coherent bremsstrahlung spectrum vs tilt")
@@ -19,7 +20,31 @@ parser.add_argument('--beamx', type=float, required=False,
                     help='Beam x position in mm')
 parser.add_argument('--beamy', type=float, required=False,
                     help='Beam y position in mm')
+parser.add_argument('--dose', type=float, required=False, help='Integrated beam current')
+parser.add_argument('--damage-alpha', type=float, default=0.0,
+                    help='Broadening growth per dose [MeV/(e-/cm^2)]')
+parser.add_argument('--damage-beta1', type=float, default=0.0,
+                    help='Linear peak shift per dose [MeV/(e-/cm^2)]')
+parser.add_argument('--damage-beta2', type=float, default=0.0,
+                    help='Quadratic peak shift per dose^2 [MeV/(e-/cm^2)^2]')
+parser.add_argument('--damage-D0', type=float, default=float('inf'),
+                    help='Coherent amplitude e-fold dose [e-/cm^2]')
+parser.add_argument('--damage-sigma0', type=float, default=0.0,
+                    help='Baseline blur sigma at zero dose [MeV]')
+parser.add_argument('--beam-delh', type=float, default=0.0,
+                    help='Electron beam horizontal tilt (same units as thetah)')
+parser.add_argument('--beam-delv', type=float, default=0.0,
+                    help='Electron beam vertical tilt (same units as thetav)')
 args_cli = parser.parse_args()
+
+
+damage = DiamondDamageModel(alpha=args_cli.damage_alpha,
+                            beta1=args_cli.damage_beta1,
+                            beta2=args_cli.damage_beta2,
+                            D0=args_cli.damage_D0,
+                            sigma0=args_cli.damage_sigma0)
+dose = args_cli.dose  # e-/cm^2
+
 
 nominal_edge = args_cli.edge
 pol_dir = args_cli.config.upper()
@@ -82,6 +107,10 @@ base_args = {
     "beamy_noise": 0.1,  # mm
 }
 
+#Add beam angle tile to the base args
+base_args["beam_th"] = float(args_cli.beam_th or 0.0)
+base_args["beam_tv"] = float(args_cli.beam_tv or 0.0)
+
 #snap the thetah and thetav into place
 status, output = snap_crystal_orientation(base_args)
 thetah_str, thetav_str = output[0].decode().split(",")
@@ -97,14 +126,18 @@ htilt = make_beamtilt(base_args)[0]
 def compute_peak_energy(thetah, thetav, args, polarized=0):
 
     args = base_args.copy()
-    args["thetah"] = thetah
-    args["thetav"] = thetav
 
+    # Convert diamond angles + beam tilt -> effective relative angles
+    thetah_eff = thetah - args.get("beam_th", 0.0)
+    thetav_eff = thetav - args.get("beam_tv", 0.0)
+    args["thetah"] = thetah_eff
+    args["thetav"] = thetav_eff
+    
     # Apply beam jitter
-    beamx = np.random.normal(args["xoffset"], args["beamx_noise"])
-    beamy = np.random.normal(args["yoffset"], args["beamy_noise"])
-    args["xoffset"] = beamx
-    args["yoffset"] = beamy
+    #beamx = np.random.normal(args["xoffset"], args["beamx_noise"])
+    #beamy = np.random.normal(args["yoffset"], args["beamy_noise"])
+    #args["xoffset"] = beamx
+    #args["yoffset"] = beamy
 
     print(args["thetah"])
     print(args["thetav"])    
@@ -125,7 +158,14 @@ def compute_peak_energy(thetah, thetav, args, polarized=0):
     energy = np.array([h_coh.GetBinCenter(i) for i in range(1, n_bins + 1)])
     y_coh  = np.array([h_coh.GetBinContent(i)  for i in range(1, n_bins + 1)])
     y_inc  = np.array([h_incoh.GetBinContent(i) for i in range(1, n_bins + 1)])
-    y_total = y_coh + y_inc
+    #y_total = y_coh + y_inc
+
+    # Energy units: your ROOT hist x-axis is in GeV; the model expects MeV for σ and shifts.
+    # Convert to MeV for the convolution physics, then back.
+    E_GeV = energy
+    E_MeV = 1000.0 * E_GeV
+    y_coh_damaged = damage.apply(E_MeV, y_coh, dose)
+    y_total = y_coh_damaged + y_inc
 
     with np.errstate(divide='ignore', invalid='ignore'):
         enhancement = np.where(y_inc != 0, y_coh / y_inc, 0)
@@ -148,7 +188,7 @@ c_vals = np.linspace(0, 50, 50)
 outfilename = f"coherent_peaks_{pol_dir}_{orientation.replace('/', '-')}.csv"
 with open(outfilename, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
-    writer.writerow(["thetah", "thetav", "beamx", "beamy", "phideg", "peak_energy"])
+    writer.writerow(["thetah", "thetav", "beam_delh", "beam_delv", "beamx", "beamy", "phideg", "peak_energy"])
 
     phideg_rad = np.rad2deg(phideg)
     
@@ -160,5 +200,8 @@ with open(outfilename, "w", newline="") as csvfile:
             thetah = thetah_0 + c*np.sin(phideg_rad)
             thetav = thetav_0 + c*np.cos(phideg_rad)            
         peak_energy, beamx, beamy = compute_peak_energy(thetah, thetav, base_args)
-        writer.writerow([thetah, thetav, beamx, beamy, base_args['phideg'], peak_energy])
-        print(f"ThetaH={thetah:.5f}, ThetaV={thetav:.5f}, Phi={base_args['phideg']:3}° → Peak = {peak_energy:.5f} GeV")
+
+        writer.writerow([thetah, thetav, base_args.get("beam_delh",0.0), base_args.get("beam_delv",0.0),
+                         beamx, beamy, base_args['phideg'], peak_energy])
+        print(f"Diamond θH={thetah:.5f}, θV={thetav:.5f}, Beam(θH,θV)=({base_args.get('beam_delh',0.0):.5f},{base_args.get('beam_delv',0.0):.5f}), "
+              f"Phi={base_args['phideg']:3}° → Peak = {peak_energy:.5f} GeV")

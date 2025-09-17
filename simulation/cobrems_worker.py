@@ -62,10 +62,15 @@ def fill_intensity_hist(args, polarized=0):
    ROOT.cobrems.setCollimatorDiameter(args["coldiam"] * 1e-3)
    ROOT.cobrems.setTargetThickness(args["radthick"] * 1e-6)
    ROOT.cobrems.setTargetCrystal("diamond")
+
+   # Effective angles: diamond minus beam tilt → relative beam/crystal angles
+   thetah_eff = float(args.get('thetah', 0.0)) - float(args.get('beam_delh', 0.0))
+   thetav_eff = float(args.get('thetav', 0.0)) - float(args.get('beam_delv', 0.0))
+   
    hlist = ROOT.cobrems_intensity(args['radname'], args['iradview'],
                                   args['ebeam'], args['ibeam'], 
                                   args['xyresol'],
-                                  args['thetah'], args['thetav'],
+                                  args['thetah_eff'], args['thetav_eff'],
                                   args['xoffset'], args['yoffset'],
                                   args['phideg'],
                                   args['xsigma'], args['ysigma'],
