@@ -31,9 +31,9 @@ parser.add_argument('--damage-D0', type=float, default=float('inf'),
                     help='Coherent amplitude e-fold dose [e-/cm^2]')
 parser.add_argument('--damage-sigma0', type=float, default=0.0,
                     help='Baseline blur sigma at zero dose [MeV]')
-parser.add_argument('--beam-delh', type=float, default=0.0,
+parser.add_argument('--beam_delh0', type=float, default=0.0,
                     help='Electron beam horizontal tilt (same units as thetah)')
-parser.add_argument('--beam-delv', type=float, default=0.0,
+parser.add_argument('--beam_delv0', type=float, default=0.0,
                     help='Electron beam vertical tilt (same units as thetav)')
 args_cli = parser.parse_args()
 
@@ -108,8 +108,11 @@ base_args = {
 }
 
 #Add beam angle tile to the base args
-base_args["beam_th"] = float(args_cli.beam_th or 0.0)
-base_args["beam_tv"] = float(args_cli.beam_tv or 0.0)
+base_args["beam_delh0"] = float(args_cli.beam_delh0 or 0.0)
+base_args["beam_delv0"] = float(args_cli.beam_delv0 or 0.0)
+base_args["beam_delh_sigma"] = 0.2
+base_args["beam_delv_sigma"] = 0.1
+
 
 #snap the thetah and thetav into place
 status, output = snap_crystal_orientation(base_args)
@@ -128,16 +131,30 @@ def compute_peak_energy(thetah, thetav, args, polarized=0):
     args = base_args.copy()
 
     # Convert diamond angles + beam tilt -> effective relative angles
-    thetah_eff = thetah - args.get("beam_th", 0.0)
-    thetav_eff = thetav - args.get("beam_tv", 0.0)
-    args["thetah"] = thetah_eff
-    args["thetav"] = thetav_eff
+    # initial mean offsets
+    beam_delh0 = args.get("beam_delh0", 0.0)
+    beam_delv0 = args.get("beam_delv0", 0.0)
     
-    # Apply beam jitter
-    #beamx = np.random.normal(args["xoffset"], args["beamx_noise"])
-    #beamy = np.random.normal(args["yoffset"], args["beamy_noise"])
-    #args["xoffset"] = beamx
-    #args["yoffset"] = beamy
+    # jitter widths (RMS, mrad)
+    sigma_h = args.get("beam_delh_sigma", 0.0)
+    sigma_v = args.get("beam_delv_sigma", 0.0)
+    
+    # stochastic jitter per call
+    jitter_h = np.random.normal(0.0, sigma_h)
+    jitter_v = np.random.normal(0.0, sigma_v)
+
+    # effective beam tilt
+    beam_delh_eff = beam_delh0 + jitter_h
+    beam_delv_eff = beam_delv0 + jitter_v
+
+    args["thetah"] = thetah + beam_delh_eff
+    args["thetav"] = thetav + beam_delv_eff
+
+    # Apply beam position jitter
+    beamx = np.random.normal(args["xoffset"], args["beamx_noise"])
+    beamy = np.random.normal(args["yoffset"], args["beamy_noise"])
+    args["xoffset"] = beamx
+    args["yoffset"] = beamy
 
     print(args["thetah"])
     print(args["thetav"])    
@@ -179,7 +196,7 @@ def compute_peak_energy(thetah, thetav, args, polarized=0):
         peak_energy = np.nan
         peak_enhancement = np.nan
     
-    return peak_energy, beamx, beamy
+    return peak_energy, beamx, beamy, beam_delh_eff, beam_delv_eff
 
 # Sweep through angles
 c_vals = np.linspace(0, 50, 50)
@@ -188,7 +205,7 @@ c_vals = np.linspace(0, 50, 50)
 outfilename = f"coherent_peaks_{pol_dir}_{orientation.replace('/', '-')}.csv"
 with open(outfilename, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
-    writer.writerow(["thetah", "thetav", "beam_delh", "beam_delv", "beamx", "beamy", "phideg", "peak_energy"])
+    writer.writerow(["thetah", "thetav", "beam_delh_eff", "beam_delv_eff", "beamx", "beamy", "phideg", "peak_energy"])
 
     phideg_rad = np.rad2deg(phideg)
     
@@ -199,9 +216,8 @@ with open(outfilename, "w", newline="") as csvfile:
         else:
             thetah = thetah_0 + c*np.sin(phideg_rad)
             thetav = thetav_0 + c*np.cos(phideg_rad)            
-        peak_energy, beamx, beamy = compute_peak_energy(thetah, thetav, base_args)
+        peak_energy, beamx, beamy, beam_delh_eff, beam_delv_eff = compute_peak_energy(thetah, thetav, base_args)
 
-        writer.writerow([thetah, thetav, base_args.get("beam_delh",0.0), base_args.get("beam_delv",0.0),
-                         beamx, beamy, base_args['phideg'], peak_energy])
-        print(f"Diamond θH={thetah:.5f}, θV={thetav:.5f}, Beam(θH,θV)=({base_args.get('beam_delh',0.0):.5f},{base_args.get('beam_delv',0.0):.5f}), "
+        writer.writerow([thetah, thetav, beam_delh_eff, beam_delv_eff, beamx, beamy, base_args['phideg'], peak_energy])
+        print(f"Diamond θH={thetah:.5f}, θV={thetav:.5f}, Beam(θH,θV)=({beam_delh_eff:.5f},{beam_delv_eff:.5f}), "
               f"Phi={base_args['phideg']:3}° → Peak = {peak_energy:.5f} GeV")
