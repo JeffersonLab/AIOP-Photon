@@ -29,10 +29,10 @@ os.environ["CPATH"] = "/home/patrick/miniconda3/envs/spotfinder-new/include"
 os.environ["LD_LIBRARY_PATH"] = "/home/patrick/miniconda3/envs/spotfinder-new/lib"
 
 # The following variables MUST be customized for the local site
-docroot = "/var/www/html"
-topdir = "/spotfinder"
-tmpdir = "/spotfinder/tmp"
-self_script = "http://localhost/spotfinder"
+docroot = "/home/patrick/AIOP-Photon"
+topdir = "simulation"
+tmpdir = "simulation/tmp"
+self_script = "http://localhost/simulation"
 
 sys.path.append(f"{docroot}{topdir}")
 import cobrems_worker
@@ -211,132 +211,276 @@ def make_projection(prof):
    iprojection_index = random.randint(0, 1<<64)
    return prof.ProjectionX(f"px_{iprojection_index}")
 
-def fill_cobrems_intensity(args, nsamples, htilt, nsplit=1, batchsize=500):
-   """
-   Create and fill a histogram of the collimated coherent bremsstrahlung
-   beam intensity as a function of photon energy. This is implemented as
-   a sum over tilt angles of the crystal sampled randomly from the htilt
-   2D histogram. Computation of the intensity spectra for individual sets
-   of tilt angles is offloaded to a parallel processing engine powered by
-   Celery. It requires that separate worker processes be running somewhere
-   on the cluster, communicating with this script through the rabbitmq
-   message broker daemon running on localhost. The result is returned as
-   a 1D profile histogram of the collimated photon beam rate spectrum
-   under the conditions specified in args. Performance is limited by the
-   number of available nodes running the celery workers.
-   """
-   thetah_ref = float(args['thetah'])
-   thetav_ref = float(args['thetav'])
-   penergy0_ref = float(args['penergy0'])
-   penergy1_ref = float(args['penergy1'])
-   pesplit = (penergy1_ref - penergy0_ref) / nsplit
-   thetah_mr = np.array([0], dtype=float)
-   thetav_mr = np.array([0], dtype=float)
-   htot = 0
-   for b in range(0, nsamples, batchsize):
-      bmax = min(b + batchsize, nsamples)
-      procs = []
-      for i in range(b, bmax):
-         htilt.GetRandom2(thetah_mr, thetav_mr)
-         args['thetah'] = thetah_ref + thetah_mr[0]
-         args['thetav'] = thetav_ref + thetav_mr[0]
-         for j in range(nsplit):
-            args['penergy0'] = penergy0_ref + j * pesplit
-            args['penergy1'] = penergy0_ref + (j+1) * pesplit
-            procs.append(cobrems_worker.fill_intensity_hist.delay(args))
-      retries = 0
-      while len(procs) > 0:
-         pending = []
-         for proc in procs:
-            if proc.ready():
-               msg = proc.get()
-               h = pickle.loads(base64.b64decode(msg))
-               if htot:
-                  htot.Add(h)
-               else:
-                  htot = h
-            elif retries > 50:
-               proc.forget()
-            else:
-               pending.append(proc)
-         procs = pending
-         if len(procs) > 0:
-            time.sleep(1)
-            retries += 1
-   args['thetah'] = thetah_ref
-   args['thetav'] = thetav_ref
-   args['penergy0'] = penergy0_ref
-   args['penergy1'] = penergy1_ref
-   hlist = ROOT.TObjArray()
-   hlist.Add(htot)
-   return hlist
+# def fill_cobrems_intensity(args, nsamples, htilt, nsplit=1, batchsize=500):
+#    """
+#    Create and fill a histogram of the collimated coherent bremsstrahlung
+#    beam intensity as a function of photon energy. This is implemented as
+#    a sum over tilt angles of the crystal sampled randomly from the htilt
+#    2D histogram. Computation of the intensity spectra for individual sets
+#    of tilt angles is offloaded to a parallel processing engine powered by
+#    Celery. It requires that separate worker processes be running somewhere
+#    on the cluster, communicating with this script through the rabbitmq
+#    message broker daemon running on localhost. The result is returned as
+#    a 1D profile histogram of the collimated photon beam rate spectrum
+#    under the conditions specified in args. Performance is limited by the
+#    number of available nodes running the celery workers.
+#    """
+#    thetah_ref = float(args['thetah'])
+#    thetav_ref = float(args['thetav'])
+#    penergy0_ref = float(args['penergy0'])
+#    penergy1_ref = float(args['penergy1'])
+#    pesplit = (penergy1_ref - penergy0_ref) / nsplit
+#    thetah_mr = np.array([0], dtype=float)
+#    thetav_mr = np.array([0], dtype=float)
+#    htot = 0
+#    for b in range(0, nsamples, batchsize):
+#       bmax = min(b + batchsize, nsamples)
+#       procs = []
+#       for i in range(b, bmax):
+#          htilt.GetRandom2(thetah_mr, thetav_mr)
+#          args['thetah'] = thetah_ref + thetah_mr[0]
+#          args['thetav'] = thetav_ref + thetav_mr[0]
+#          for j in range(nsplit):
+#             args['penergy0'] = penergy0_ref + j * pesplit
+#             args['penergy1'] = penergy0_ref + (j+1) * pesplit
+#             procs.append(cobrems_worker.fill_intensity_hist.delay(args))
+#       retries = 0
+#       while len(procs) > 0:
+#          pending = []
+#          for proc in procs:
+#             if proc.ready():
+#                msg = proc.get()
+#                h = pickle.loads(base64.b64decode(msg))
+#                if htot:
+#                   htot.Add(h)
+#                else:
+#                   htot = h
+#             elif retries > 50:
+#                proc.forget()
+#             else:
+#                pending.append(proc)
+#          procs = pending
+#          if len(procs) > 0:
+#             time.sleep(1)
+#             retries += 1
+#    args['thetah'] = thetah_ref
+#    args['thetav'] = thetav_ref
+#    args['penergy0'] = penergy0_ref
+#    args['penergy1'] = penergy1_ref
+#    hlist = ROOT.TObjArray()
+#    hlist.Add(htot)
+#    return hlist
 
-def fill_cobrems_polarintensity(args, nsamples, htilt, nsplit=1, batchsize=500):
-   """
-   Create and fill a histogram of the collimated coherent bremsstrahlung
-   polarized intensity as a function of photon energy. This is implemented
-   as a sum over tilt angles of the crystal sampled randomly from the htilt
-   2D histogram. Computation of the intensity spectra for individual sets
-   of tilt angles is offloaded to a parallel processing engine powered by
-   Celery. It requires that separate worker processes be running somewhere
-   on the cluster, communicating with this script through the rabbitmq
-   message broker daemon running on localhost. The result is returned as
-   a 1D profile histogram of the collimated photon beam rate spectrum
-   under the conditions specified in args. Performance is limited by the
-   number of available nodes running the celery workers.
-   """
-   thetah_ref = float(args['thetah'])
-   thetav_ref = float(args['thetav'])
-   penergy0_ref = float(args['penergy0'])
-   penergy1_ref = float(args['penergy1'])
-   pesplit = (penergy1_ref - penergy0_ref) / nsplit
-   thetah_mr = np.array([0], dtype=float)
-   thetav_mr = np.array([0], dtype=float)
-   htot = [0,0]
-   for b in range(0, nsamples, batchsize):
-      bmax = min(b + batchsize, nsamples)
-      procs = []
-      for i in range(b, bmax):
-         htilt.GetRandom2(thetah_mr, thetav_mr)
-         args['thetah'] = thetah_ref + thetah_mr[0]
-         args['thetav'] = thetav_ref + thetav_mr[0]
-         for j in range(nsplit):
-            args['penergy0'] = penergy0_ref + j * pesplit
-            args['penergy1'] = penergy0_ref + (j+1) * pesplit
-            p0 = cobrems_worker.fill_intensity_hist.delay(args, polarized=0)
-            p1 = cobrems_worker.fill_intensity_hist.delay(args, polarized=1)
-            setattr(p0, 'unpolarized_or_polarized', 0)
-            setattr(p1, 'unpolarized_or_polarized', 1)
-            procs.append(p0)
-            procs.append(p1)
-      retries = 0
-      while len(procs) > 0:
-         pending = []
-         for proc in procs:
-            if proc.ready():
-               msg = proc.get()
-               h = pickle.loads(base64.b64decode(msg))
-               p = proc.unpolarized_or_polarized
-               if htot[p]:
-                  htot[p].Add(h)
-               else:
-                  htot[p] = h
-            elif retries > 50:
-               proc.forget()
+#def fill_cobrems_polarintensity(args, nsamples, htilt, nsplit=1, batchsize=500):
+#   """
+#   Create and fill a histogram of the collimated coherent bremsstrahlung
+#   polarized intensity as a function of photon energy. This is implemented
+#   as a sum over tilt angles of the crystal sampled randomly from the htilt
+#   2D histogram. Computation of the intensity spectra for individual sets
+#   of tilt angles is offloaded to a parallel processing engine powered by
+#   Celery. It requires that separate worker processes be running somewhere
+#   on the cluster, communicating with this script through the rabbitmq
+#   message broker daemon running on localhost. The result is returned as
+#   a 1D profile histogram of the collimated photon beam rate spectrum
+#   under the conditions specified in args. Performance is limited by the
+#   number of available nodes running the celery workers.
+#   """
+#   thetah_ref = float(args['thetah'])
+#   thetav_ref = float(args['thetav'])
+#   penergy0_ref = float(args['penergy0'])
+#   penergy1_ref = float(args['penergy1'])
+#   pesplit = (penergy1_ref - penergy0_ref) / nsplit
+#   thetah_mr = np.array([0], dtype=float)
+#   thetav_mr = np.array([0], dtype=float)
+#   htot = [0,0]
+#   for b in range(0, nsamples, batchsize):
+#      bmax = min(b + batchsize, nsamples)
+#      procs = []
+#      for i in range(b, bmax):
+#         htilt.GetRandom2(thetah_mr, thetav_mr)
+#         args['thetah'] = thetah_ref + thetah_mr[0]
+#         args['thetav'] = thetav_ref + thetav_mr[0]
+#         for j in range(nsplit):
+#            args['penergy0'] = penergy0_ref + j * pesplit
+#            args['penergy1'] = penergy0_ref + (j+1) * pesplit
+#            p0 = cobrems_worker.fill_intensity_hist.delay(args, polarized=0)
+#            p1 = cobrems_worker.fill_intensity_hist.delay(args, polarized=1)
+#            setattr(p0, 'unpolarized_or_polarized', 0)
+#            setattr(p1, 'unpolarized_or_polarized', 1)
+#            procs.append(p0)
+#            procs.append(p1)
+#      retries = 0
+#      while len(procs) > 0:
+#         pending = []
+#         for proc in procs:
+#            if proc.ready():
+#               msg = proc.get()
+#               h = pickle.loads(base64.b64decode(msg))
+   #             p = proc.unpolarized_or_polarized
+   #             if htot[p]:
+   #                htot[p].Add(h)
+   #             else:
+   #                htot[p] = h
+   #          #elif retries > 50:
+   #          #   proc.forget()
+   #          elif retries > 50:
+   #             try:
+   #                proc.revoke(terminate=True)
+   #             except Exception:
+   #                pass
+   #          else:
+   #             pending.append(proc)
+   #       procs = pending
+   #       if len(procs) > 0:
+   #          time.sleep(1)
+   #          retries += 1
+   # args['thetah'] = thetah_ref
+   # args['thetav'] = thetav_ref
+   # args['penergy0'] = penergy0_ref
+   # args['penergy1'] = penergy1_ref
+   # hlist = ROOT.TObjArray()
+   # hlist.Add(htot[1])
+   # hlist.Add(htot[0])
+   # return hlist
+
+def fill_cobrems_intensity(args, nsamples, htilt, nsplit=1, batchsize=500):
+    """
+    Local version of fill_cobrems_intensity — runs fully in-process using ROOT,
+    no Celery or RabbitMQ required.
+
+    Computes the collimated coherent bremsstrahlung beam intensity as a function
+    of photon energy. Returns: ROOT.TObjArray([htot]) where htot is a TH1D.
+
+    Parameters
+    ----------
+    args : dict
+        Beam and radiator parameters.
+    nsamples : int
+        Number of Monte Carlo samples drawn from htilt.
+    htilt : ROOT.TH2
+        2D histogram of horizontal/vertical tilt angles.
+    nsplit : int
+        Optional energy segmentation count.
+    batchsize : int
+        Unused here, kept for API compatibility.
+    """
+
+    thetah_ref = float(args["thetah"])
+    thetav_ref = float(args["thetav"])
+    penergy0_ref = float(args["penergy0"])
+    penergy1_ref = float(args["penergy1"])
+    pesplit = (penergy1_ref - penergy0_ref) / nsplit
+
+    # allocate temporary variables
+    thetah_mr = np.array([0.0])
+    thetav_mr = np.array([0.0])
+
+    htot = None  # running total histogram
+
+    # main sampling loop
+    for i in range(nsamples):
+        # sample random tilt from the tiltspot histogram
+        htilt.GetRandom2(thetah_mr, thetav_mr)
+        args["thetah"] = thetah_ref + thetah_mr[0]
+        args["thetav"] = thetav_ref + thetav_mr[0]
+
+        # optionally split energy range
+        for j in range(nsplit):
+            args["penergy0"] = penergy0_ref + j * pesplit
+            args["penergy1"] = penergy0_ref + (j + 1) * pesplit
+
+            # call the compiled C++ method directly
+            hlist = ROOT.cobrems_intensity(
+                args["radname"], args["iradview"],
+                args["ebeam"], args["ibeam"],
+                args["xyresol"],
+                args["thetah"], args["thetav"],
+                args["xoffset"], args["yoffset"],
+                args["phideg"],
+                args["xsigma"], args["ysigma"], args["xycorr"],
+                args["peresol"], args["penergy0"], args["penergy1"], 0
+            )
+
+            h = hlist[0]
+            h.SetDirectory(0)
+
+            if htot:
+                htot.Add(h)
             else:
-               pending.append(proc)
-         procs = pending
-         if len(procs) > 0:
-            time.sleep(1)
-            retries += 1
-   args['thetah'] = thetah_ref
-   args['thetav'] = thetav_ref
-   args['penergy0'] = penergy0_ref
-   args['penergy1'] = penergy1_ref
-   hlist = ROOT.TObjArray()
-   hlist.Add(htot[1])
-   hlist.Add(htot[0])
-   return hlist
+                htot = h.Clone()
+                htot.SetDirectory(0)
+
+    # restore nominal values
+    args["thetah"] = thetah_ref
+    args["thetav"] = thetav_ref
+    args["penergy0"] = penergy0_ref
+    args["penergy1"] = penergy1_ref
+
+    # package output to match the original API
+    hlist_out = ROOT.TObjArray()
+    hlist_out.Add(htot)
+    return hlist_out
+
+   
+def fill_cobrems_polarintensity(args, nsamples, htilt, nsplit=1, batchsize=500):
+    """
+    Local version – compute spectra directly with ROOT, no Celery.
+    Returns TObjArray([polarized_hist, unpolarized_hist]).
+    """
+    thetah_ref = float(args['thetah'])
+    thetav_ref = float(args['thetav'])
+    penergy0_ref = float(args['penergy0'])
+    penergy1_ref = float(args['penergy1'])
+    pesplit = (penergy1_ref - penergy0_ref) / nsplit
+
+    thetah_mr = np.array([0.0])
+    thetav_mr = np.array([0.0])
+    h_pol = 0
+    h_unpol = 0
+
+    for i in range(nsamples):
+        htilt.GetRandom2(thetah_mr, thetav_mr)
+        args['thetah'] = thetah_ref + thetah_mr[0]
+        args['thetav'] = thetav_ref + thetav_mr[0]
+        for j in range(nsplit):
+            args['penergy0'] = penergy0_ref + j * pesplit
+            args['penergy1'] = penergy0_ref + (j + 1) * pesplit
+
+            # direct C++ call instead of Celery task
+            hlist_pol = ROOT.cobrems_intensity(
+                args['radname'], args['iradview'],
+                args['ebeam'], args['ibeam'],
+                args['xyresol'], args['thetah'], args['thetav'],
+                args['xoffset'], args['yoffset'], args['phideg'],
+                args['xsigma'], args['ysigma'], args['xycorr'],
+                args['peresol'], args['penergy0'], args['penergy1'], 1)
+            hlist_unpol = ROOT.cobrems_intensity(
+                args['radname'], args['iradview'],
+                args['ebeam'], args['ibeam'],
+                args['xyresol'], args['thetah'], args['thetav'],
+                args['xoffset'], args['yoffset'], args['phideg'],
+                args['xsigma'], args['ysigma'], args['xycorr'],
+                args['peresol'], args['penergy0'], args['penergy1'], 0)
+
+            h_p = hlist_pol[0]
+            h_u = hlist_unpol[0]
+            if h_pol:
+                h_pol.Add(h_p)
+                h_unpol.Add(h_u)
+            else:
+                h_pol = h_p
+                h_unpol = h_u
+
+    args['thetah'] = thetah_ref
+    args['thetav'] = thetav_ref
+    args['penergy0'] = penergy0_ref
+    args['penergy1'] = penergy1_ref
+
+    out = ROOT.TObjArray()
+    out.Add(h_pol)
+    out.Add(h_unpol)
+    return out
+
 
 def get_form_var(var, pars, dtype, default, unit="", err=0):
    try:
