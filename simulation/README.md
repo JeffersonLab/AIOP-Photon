@@ -26,11 +26,11 @@ command line.
 
     This will produce shared libraries and PCM dictionary files such as:
 
-    Map2D_cc.so
-    Couples_C.so
-    CobremsGeneration_cc.so
-    rootvisuals_C.so
-    *_ACLiC_dict_rdict.pcm
+    Map2D_cc.so  
+    Couples_C.so  
+    CobremsGeneration_cc.so  
+    rootvisuals_C.so  
+    *_ACLiC_dict_rdict.pcm  
     
 ---
 
@@ -65,6 +65,6 @@ python sim_wrapper.py \
 
 Output files are saved as:
 
-coherent_peaks_<CONFIG>_<PHI>.csv
+`coherent_peaks_<CONFIG>_<PHI>.csv`
 
 ---
