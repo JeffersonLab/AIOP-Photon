@@ -51,6 +51,7 @@ def step_with_backlash(target, step, backlash_n, state):
         move_true = move_readback
 
     state.pos_true += move_true
+
     return state.pos_true, state.pos_readback
 
 
@@ -83,7 +84,7 @@ def init_root(base_args):
     libdir = os.path.dirname(os.path.abspath(__file__))
     ROOT.gSystem.AddDynamicPath(libdir)
     ROOT.gSystem.Load(os.path.join(libdir, "CobremsGeneration_cc.so"))
-    #ROOT.gSystem.Load(os.path.join(libdir, "rootvisuals_C.so"))
+    ROOT.gSystem.Load(os.path.join(libdir, "rootvisuals_C.so"))
 
     ebeam, ibeam = base_args["ebeam"], base_args["ibeam"]
     ROOT.cobrems = ROOT.CobremsGeneration(ebeam, ibeam)
@@ -98,7 +99,7 @@ def init_root(base_args):
 
 
 def compute_peak_energy(params):
-    (i, total, yaw_true, pitch_true, yaw_readback, pitch_readback,
+    (i, total, yaw_true_nowobble, pitch_true_nowobble, yaw_true, pitch_true, yaw_readback, pitch_readback,
      beam_delh, beam_delv, base_args, dose, damage, offsets) = params
 
     ROOT = init_root(base_args)
@@ -146,7 +147,7 @@ def compute_peak_energy(params):
     c, i_angle = pitch_true * 1e-3, yaw_true * 1e-3
     Ga, Gv, Gh = compute_goniometer_angles(phi, c, i_angle, offsets)
 
-    return (yaw_readback, pitch_readback, yaw_true, pitch_true,
+    return (yaw_readback, pitch_readback, yaw_true_nowobble, pitch_true_nowobble, yaw_true, pitch_true,
             beam_delh_eff, beam_delv_eff,
             thetah_eff, thetav_eff,
             beamx, beamy, peak_energy,
@@ -233,15 +234,17 @@ def main():
         beam_delh = np.random.normal(0.0, 0.002)  # horizontal beam tilt [mrad]
         beam_delv = np.random.normal(0.0, 0.001)  # vertical beam tilt [mrad]
 
-        yaw_true, yaw_readback = step_with_backlash(yaw_target, args.step, args.backlash_n, yaw_state)
-        pitch_true, pitch_readback = step_with_backlash(pitch_target, args.step, args.backlash_n, pitch_state)
+        yaw_true_nowobble, yaw_readback = step_with_backlash(yaw_target, args.step, args.backlash_n, yaw_state)
+        pitch_true_nowobble, pitch_readback = step_with_backlash(pitch_target, args.step, args.backlash_n, pitch_state)
 
+        
         # Apply wobble to true angles
-        yaw_true_wobble = apply_wobble(yaw_true, yaw_wobble_amp, yaw_wobble_period, yaw_phase)
-        pitch_true_wobble = apply_wobble(pitch_true, pitch_wobble_amp, pitch_wobble_period, pitch_phase)
+        yaw_true_wobble = apply_wobble(yaw_true_nowobble, yaw_wobble_amp, yaw_wobble_period, yaw_phase)
+        pitch_true_wobble = apply_wobble(pitch_true_nowobble, pitch_wobble_amp, pitch_wobble_period, pitch_phase)
 
         params_list.append((i, nsteps,
-                            yaw_true_wobble, pitch_true_wobble,
+                            yaw_true_nowobble, pitch_true_nowobble,
+                            yaw_true_wobble, pitch_true_wobble,                            
                             yaw_readback, pitch_readback,
                             beam_delh, beam_delv,
                             base_args, dose, damage, offsets))
@@ -250,22 +253,49 @@ def main():
     t0 = time.time()
     results = []
     with mp.Pool(processes=min(args.nproc, os.cpu_count())) as pool:
-        for res in tqdm(pool.imap_unordered(compute_peak_energy, params_list),
+        for res in tqdm(pool.imap(compute_peak_energy, params_list),
                         total=len(params_list), desc="Simulating", ncols=90):
             results.append(res)
     print(f"\nCompleted {len(results)} stochastic steps in {time.time() - t0:.2f} s")
 
+
+    # -----------------------------------------------------------
+    # Write output file including initial (pre-nudge) state
+    # -----------------------------------------------------------
     outfilename = f"stochastic_goniometer_beam_{pol_dir}_{args.phi.replace('/', '-')}_backlash_wobble.csv"
     with open(outfilename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
             "yaw_readback", "pitch_readback",
+            "yaw_true_nowobble", "pitch_true_nowobble",
             "yaw_true", "pitch_true",
             "beam_delh_eff", "beam_delv_eff",
             "thetah_eff", "thetav_eff",
             "beamx", "beamy", "peak_energy",
             "Ga_deg", "Gv_deg", "Gh_deg"
         ])
+
+        # --- Write initial state (row 0) before any motion ---
+        base_args["thetah"], base_args["thetav"] = thetah_0, thetav_0
+        peak_energy_init = compute_peak_energy((
+            0, 0,
+            thetah_0, thetav_0,            
+            thetah_0, thetav_0,
+            thetah_0, thetav_0,
+            0.0, 0.0,
+            base_args, dose, damage, offsets
+        ))[-5]
+
+        writer.writerow([
+            thetah_0, thetav_0,  # yaw_readback, pitch_readback
+            thetah_0, thetav_0,  # yaw_true, pitch_true
+            0.0, 0.0,             # beam_delh_eff, beam_delv_eff
+            thetah_0, thetav_0,   # thetah_eff, thetav_eff
+            base_args["xoffset"], base_args["yoffset"],
+            peak_energy_init, 0.0, 0.0, 0.0
+        ])
+
+        # --- Write all simulation results ---
         writer.writerows(results)
     print(f"Saved results to {outfilename}\n")
 
