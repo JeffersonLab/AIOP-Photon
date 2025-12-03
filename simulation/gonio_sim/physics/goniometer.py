@@ -59,9 +59,13 @@ def compute_peak_energy(params):
     y_coh = np.array([h_coh.GetBinContent(b) for b in range(1, n_bins + 1)])
     y_inc = np.array([h_incoh.GetBinContent(b) for b in range(1, n_bins + 1)])
     
-
+    # Convert to MeV
     E_MeV = 1000.0 * energy
+
+    # Apply diamond degradation
     y_coh = damage.apply(E_MeV, y_coh, dose)
+
+    # Compute enhancement and peak
     enhancement = np.divide(y_coh, y_inc, out=np.zeros_like(y_coh), where=y_inc != 0)
     peak_energy = float(energy[np.nanargmax(enhancement)])
 
