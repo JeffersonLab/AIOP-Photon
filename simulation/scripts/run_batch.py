@@ -32,8 +32,8 @@ def run_single_step(args_tuple):
     dp, dy, env_cfg = args_tuple
     # Each worker creates its own environment (ROOT not thread-safe)
     env = GoniometerEnv(env_cfg)
-    E = env.step(dp, dy)
-    return E
+    result = env.step(dp, dy)
+    return result
 
 
 if __name__ == "__main__":
@@ -67,6 +67,6 @@ if __name__ == "__main__":
 
     # Write output CSV
     outname = f"stochastic_goniometer_beam_{args.config}_{args.phi.replace('/', '-')}.csv"
-    rows = [[None]*12 + [E] + [None]*3 for E in results]
+    rows = [list(r) for r in results]
     write_csv(outname, rows, HEADER)
     print(f"Saved results to {outname}")
