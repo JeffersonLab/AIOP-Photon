@@ -26,14 +26,21 @@ HEADER = [
     "Ga_deg", "Gv_deg", "Gh_deg"
 ]
 
+def run_episode(args):
+    """
+    Run a full sequential nudge episode inside ONE worker.
+    This preserves backlash, wobble, offsets, dose, etc.
+    """
+    actions, cfg = args
 
-def run_single_step(args_tuple):
-    """Helper function for multiprocessing pool."""
-    dp, dy, env_cfg = args_tuple
-    # Each worker creates its own environment (ROOT not thread-safe)
-    env = GoniometerEnv(env_cfg)
-    result = env.step(dp, dy)
-    return result
+    env = GoniometerEnv(cfg)
+    results = []
+
+    for dp, dy in actions:
+        result = env.step(dp, dy)
+        results.append(result)
+
+    return results
 
 
 if __name__ == "__main__":
@@ -42,31 +49,61 @@ if __name__ == "__main__":
     ap.add_argument("--config", type=str, choices=["PARA", "PERP"], required=True)
     ap.add_argument("--phi", type=str, choices=["0/90", "45/135"], required=True)
     ap.add_argument("--nsteps", type=int, default=200)
+    ap.add_argument("--nepisodes", type=int, default=10, help="number of independent episodes")
     ap.add_argument("--nproc", type=int, default=1, help="number of worker processes (cores) to use")
     args = ap.parse_args()
 
     env_cfg = EnvConfig(edge=args.edge, config=args.config, phi=args.phi)
 
-    # Generate random step list (like original sim_wrapper)
-    actions = []
-    for _ in range(args.nsteps):
-        dp = 0.01 if random.random() < 0.5 else 0.0
-        dy = 0.01 if dp == 0.0 else 0.0
-        dp *= 1 if random.random() < 0.5 else -1
-        dy *= 1 if random.random() < 0.5 else -1
-        actions.append((dp, dy, env_cfg))
+    phi_map = {
+        ("PARA", "0/90"):   0,
+        ("PERP", "0/90"):  90,
+        ("PARA", "45/135"): 135,
+        ("PERP", "45/135"): 45,
+    }
 
-    print(f"Running {args.nsteps} steps using {args.nproc} processes...")
+    phi_deg = phi_map[(args.config, args.phi)]
+    phi_rad = math.radians(phi_deg)
+
+    dp_base = 1e-3 * math.cos(phi_rad)
+    dy_base = 1e-3 * math.sin(phi_rad)
+    
+    # Generate random step list
+    # Change pitch/yaw in degrees
+    episodes = []
+    for ep_idx in range(args.nepisodes):
+        actions = []
+        for _ in range(args.nsteps):
+            #dp = 1e-3 if random.random() < 0.5 else 0.0
+            #dy = 1e-3 if dp == 0.0 else 0.0
+            #dp *= 1 if random.random() < 0.5 else -1
+            #dy *= 1 if random.random() < 0.5 else -1
+
+            # Randomly choose the sign of the nudge
+            sign_dp = 1 if random.random() < 0.5 else -1
+            sign_dy = 1 if random.random() < 0.5 else -1
+            
+            dp = sign_dp * dp_base
+            dy = sign_dy * dy_base
+
+            actions.append((dp, dy))
+
+        episodes.append((actions, env_cfg))
+            
+    print(f"Running {args.nepisodes} episodes × {args.nsteps} steps "
+          f"using {args.nproc} processes...")
 
     t0 = time.time()
     with mp.get_context("spawn").Pool(processes=args.nproc) as pool:
-        results = list(tqdm(pool.imap(run_single_step, actions),
-                            total=len(actions), ncols=90))
+        results_all = list(tqdm(pool.imap(run_episode, episodes),
+                            total=args.nepisodes, ncols=90))
 
-    print(f"Completed {len(results)} steps in {time.time()-t0:.2f}s total")
+    print(f"Completed {args.nepisodes} episodes in {time.time()-t0:.2f}s")
+
+    flattened = [list(row) for episode in results_all for row in episode]    
 
     # Write output CSV
     outname = f"stochastic_goniometer_beam_{args.config}_{args.phi.replace('/', '-')}.csv"
-    rows = [list(r) for r in results]
+    #rows = [list(r) for r in results]
     write_csv(outname, rows, HEADER)
     print(f"Saved results to {outname}")

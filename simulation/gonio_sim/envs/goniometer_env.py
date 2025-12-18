@@ -29,10 +29,9 @@ class GoniometerEnv:
     Contains:
       - backlash + wobble models
       - correct Cobrems geometry
-      - spatial dose map (FULLY FUNCTIONAL)
+      - spatial dose map
       - radiation-damage model
 
-    Works with RL, scanning scripts, and plotting utilities.
     """
 
     def __init__(self, cfg: EnvConfig | None = None, cfg_file: str | None = None):
@@ -90,9 +89,9 @@ class GoniometerEnv:
 
         # Backlash states
         self.yaw_state = AxisBacklashState(
-            pos_true=thetah_0, pos_readback=thetah_0)
-        self.pitch_state = AxisBacklashState(
             pos_true=thetav_0, pos_readback=thetav_0)
+        self.pitch_state = AxisBacklashState(
+            pos_true=thetah_0, pos_readback=thetah_0)
 
         # Wobble parameters
         w = base_args.get("wobble", {})
@@ -167,9 +166,9 @@ class GoniometerEnv:
             * This ensures spectra differ by position due to damage.
         """
 
-        # Convert degrees → mrad (your simulation units)
-        dp = pitch_delta_deg * 1e3
-        dy = yaw_delta_deg * 1e3
+        # Convert degrees → mdeg
+        dp = pitch_delta_deg
+        dy = yaw_delta_deg
 
         # Apply backlash model
         yaw_target = self.yaw_state.pos_true + dy
@@ -213,7 +212,6 @@ class GoniometerEnv:
 
         # Evaluate physics → peak energy
         result = compute_peak_energy(params)
-
         # Deposit new dose only during irradiation phase
         if self.dose_per_step != 0.0:
             self.deposit_dose_gaussian(x0, y0, sigma=0.3)
