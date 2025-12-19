@@ -18,7 +18,7 @@ import numpy as np
 import ROOT
 ROOT.gSystem.AddDynamicPath(os.environ['COBREMS_WORKER'])
 ROOT.gSystem.AddDynamicPath("/usr/lib64")
-ROOT.gSystem.Load("libboost_python3.so")
+ROOT.gSystem.Load("libboost_python39.so")
 ROOT.gSystem.Load("CobremsGeneration_cc.so")
 ROOT.gSystem.Load("rootvisuals_C.so")
 #to stop ROOT/Cling from using the conflicting Clang headers, tell ROOT to ignore its internal cling headers by unsetting the relevant include path.

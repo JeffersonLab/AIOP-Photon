@@ -26,8 +26,8 @@ from gonio_sim.envs.goniometer_env import GoniometerEnv, EnvConfig
 def build_features(env, a_h, a_v, ah_hist, av_hist, run_h, run_v, dir_h, dir_v, E_hist,
                    wobble_pitch_period=0.01, wobble_yaw_period=0.05):
     """Builds the input feature dict from environment + history."""
-    yaw_rb = float(env.yaw_state.pos_readback)
-    pitch_rb = float(env.pitch_state.pos_readback)
+    yaw_rb = float(env.my_goni.return_set_yaw())
+    pitch_rb = float(env.my_goni.return_set_pitch())
     E_ma = float(np.mean(E_hist[-5:])) if E_hist else 0.0
     E_std = float(np.std(E_hist[-5:])) if len(E_hist) > 1 else 0.0
 

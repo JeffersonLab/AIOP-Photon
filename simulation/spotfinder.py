@@ -25,11 +25,11 @@ import base64
 import random
 import time
 
-os.environ["CPATH"] = "/home/patrick/miniconda3/envs/spotfinder-new/include"
-os.environ["LD_LIBRARY_PATH"] = "/home/patrick/miniconda3/envs/spotfinder-new/lib"
+# os.environ["CPATH"] = "/home/patrick/miniconda3/envs/spotfinder-new/include"
+# os.environ["LD_LIBRARY_PATH"] = "/home/patrick/miniconda3/envs/spotfinder-new/lib"
 
 # The following variables MUST be customized for the local site
-docroot = "/home/patrick/AIOP-Photon"
+docroot = "/w/halld-scshelf2101/home/gjwei/AIOP/sept2025/AIOP-Photon/"
 topdir = "simulation"
 tmpdir = "simulation/tmp"
 self_script = "http://localhost/simulation"

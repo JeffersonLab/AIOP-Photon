@@ -1,3 +1,4 @@
+from typing import Optional
 from dataclasses import dataclass
 import numpy as np
 import yaml
@@ -8,6 +9,7 @@ from gonio_sim.physics import (
     step_with_backlash,
     apply_wobble,
     compute_peak_energy,
+    Goniometer,
 )
 from gonio_sim.utils.offsets import sample_offsets
 from gonio_sim.physics.damage_model import DiamondDamageModel
@@ -19,6 +21,7 @@ class EnvConfig:
     edge: float = 8.6
     config: str = "PARA"   # PARA or PERP
     phi: str = "0/90"       # 0/90 or 45/135
+    runperiod: str = "2023" # 2020, 2023, or 2025
     backlash_n: float = 2.0
     step_mrad: float = 0.01745   # movement per motor step
 
@@ -35,7 +38,8 @@ class GoniometerEnv:
     Works with RL, scanning scripts, and plotting utilities.
     """
 
-    def __init__(self, cfg: EnvConfig | None = None, cfg_file: str | None = None):
+    # def __init__(self, cfg: EnvConfig | None = None, cfg_file: str | None = None):
+    def __init__(self, cfg: Optional[EnvConfig] = None, cfg_file: Optional[str] = None):
         if cfg is None:
             cfg = EnvConfig()
         self.cfg = cfg
@@ -57,6 +61,9 @@ class GoniometerEnv:
 
         self.base_args["phideg"] = phi_map[(cfg.config, cfg.phi)]
         self.base_args["snapact"] = "snap_para" if cfg.config == "PARA" else "snap_perp"
+
+        # initialize goniometer
+        self.my_goni = Goniometer(cfg.runperiod)
 
         # Damage model + offsets
         self.damage = DiamondDamageModel()
@@ -87,12 +94,6 @@ class GoniometerEnv:
 
         thetah_0, thetav_0 = map(lambda s: float(s.strip()),
                                  output[0].decode().split(","))
-
-        # Backlash states
-        self.yaw_state = AxisBacklashState(
-            pos_true=thetah_0, pos_readback=thetah_0)
-        self.pitch_state = AxisBacklashState(
-            pos_true=thetav_0, pos_readback=thetav_0)
 
         # Wobble parameters
         w = base_args.get("wobble", {})
@@ -153,6 +154,7 @@ class GoniometerEnv:
         self.pitch_phase = np.random.uniform(0, 2*np.pi)
         self.dose_map[:] = 0.0
         self.dose = 0.0
+        self.my_goni = Goniometer(self.cfg.runperiod)
 
     # ----------------------------------------------------------------------
     # MAIN STEP FUNCTION (ONE MOVE + ONE PHYSICS EVAL)
@@ -167,20 +169,20 @@ class GoniometerEnv:
             * This ensures spectra differ by position due to damage.
         """
 
-        # Convert degrees → mrad (your simulation units)
-        dp = pitch_delta_deg * 1e3
-        dy = yaw_delta_deg * 1e3
+        dp = pitch_delta_deg
+        dy = yaw_delta_deg
 
         # Apply backlash model
-        yaw_target = self.yaw_state.pos_true + dy
-        pitch_target = self.pitch_state.pos_true + dp
+        self.my_goni.do_nudge("yaw", dy)
+        self.my_goni.do_nudge("pitch", dp)
 
-        yaw_true_nowobble, yaw_readback = step_with_backlash(
-            yaw_target, self.cfg.step_mrad, self.cfg.backlash_n, self.yaw_state
-        )
-        pitch_true_nowobble, pitch_readback = step_with_backlash(
-            pitch_target, self.cfg.step_mrad, self.cfg.backlash_n, self.pitch_state
-        )
+        # get the true diamond values and convert to mrad
+        yaw_true_nowobble = self.my_goni.return_diamond_yaw() * 1e3
+        pitch_true_nowobble = self.my_goni.return_diamond_pitch() * 1e3
+
+        # get the goniometer values and convert to mrad
+        yaw_readback = self.my_goni.return_set_yaw() * 1e3
+        pitch_readback = self.my_goni.return_set_pitch() * 1e3
 
         # Apply mechanical wobble
         yaw_true = apply_wobble(

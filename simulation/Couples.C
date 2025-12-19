@@ -58,7 +58,7 @@ using namespace std;
 int nsearchpaths = 4;
 std::string searchpath[] = 
 {
-   "/home/patrick/AIOP-Photon/simulation/tmp",
+   "/w/halld-scshelf2101/home/gjwei/AIOP/sept2025/AIOP-Photon/simulation/tmp",
    "/home/www/docs/halld/diamonds/spotfinder/tmp",
    "/home/www/docs/halld/diamonds/spotfinder/results",
    "root://nod29.phys.uconn.edu//Gluex/beamline/diamonds/cls-6-2019/results/",
