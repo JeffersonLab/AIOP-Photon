@@ -1,0 +1,56 @@
+
+# for Spring 2020
+
+myget -m history -c 'HD:coda:daq:run_number' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/run_number.txt
+myget -m history -c 'HD:CBREM:PLANE' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/cbrem_plane.txt
+myget -m history -c 'HD:coda:daq:status' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/daq_status.txt
+myget -m history -c 'HD:GONI:X' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_x.txt
+myget -m history -c 'HD:GONI:X.RBV' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_x_rbv.txt
+myget -m history -c 'HD:GONI:Y' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_y.txt
+myget -m history -c 'HD:GONI:Y.RBV' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_y_rbv.txt
+myget -m history -c 'HD:GONI:PITCH' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_pitch.txt
+myget -m history -c 'HD:GONI:PITCH.RBV' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_pitch_rbv.txt
+myget -m history -c 'HD:GONI:YAW' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_yaw.txt
+myget -m history -c 'HD:GONI:YAW.RBV' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_yaw_rbv.txt
+myget -m history -c 'HD:GONI:ROLL' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_roll.txt
+myget -m history -c 'HD:GONI:ROLL.RBV' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/goni_roll_rbv.txt
+myget -m history -c 'HallDACOrb:Suspended' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/beam_lock.txt
+
+
+
+
+# for Spring 23
+
+myget -m history -c 'HD:coda:daq:run_number' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/run_number.txt
+myget -m history -c 'HD:CBREM:PLANE' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/cbrem_plane.txt
+myget -m history -c 'HD:coda:daq:status' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/daq_status.txt
+myget -m history -c 'HD:GONI:X' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_x.txt
+myget -m history -c 'HD:GONI:X.RBV' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_x_rbv.txt
+myget -m history -c 'HD:GONI:Y' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_y.txt
+myget -m history -c 'HD:GONI:Y.RBV' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_y_rbv.txt
+myget -m history -c 'HD:GONI:PITCH' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_pitch.txt
+myget -m history -c 'HD:GONI:PITCH.RBV' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_pitch_rbv.txt
+myget -m history -c 'HD:GONI:YAW' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_yaw.txt
+myget -m history -c 'HD:GONI:YAW.RBV' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_yaw_rbv.txt
+myget -m history -c 'HD:GONI:ROLL' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_roll.txt
+myget -m history -c 'HD:GONI:ROLL.RBV' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/goni_roll_rbv.txt
+myget -m history -c 'HallDACOrb:Suspended' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/beam_lock.txt
+
+
+
+
+# Spring 25
+myget -c 'HD:coda:daq:run_number' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/run_number.txt
+myget -c 'HD:CBREM:PLANE' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/cbrem_plane.txt
+myget -c 'HD:coda:daq:status' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/daq_status.txt
+myget -c 'HD:GONI:X' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_x.txt
+myget -c 'HD:GONI:X.RBV' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_x_rbv.txt
+myget -c 'HD:GONI:Y' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_y.txt
+myget -c 'HD:GONI:Y.RBV' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_y_rbv.txt
+myget -c 'HD:GONI:PITCH' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_pitch.txt
+myget -c 'HD:GONI:PITCH.RBV' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_pitch_rbv.txt
+myget -c 'HD:GONI:YAW' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_yaw.txt
+myget -c 'HD:GONI:YAW.RBV' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00'| tee Spring25/goni_yaw_rbv.txt
+myget -c 'HD:GONI:ROLL' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_roll.txt
+myget -c 'HD:GONI:ROLL.RBV' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/goni_roll_rbv.txt
+myget -c 'HallDACOrb:Suspended' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/beam_lock.txt
