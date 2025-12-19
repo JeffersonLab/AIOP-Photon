@@ -1,6 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+from collections import deque
 
 from livingston_sim import CoherentBremsstrahlungSimulator
 
@@ -45,6 +46,10 @@ class CoherentGoniometerEnv(gym.Env):
         self.orientation_index = orientation_index
         self.orientation_label = self.ORIENTATIONS[orientation_index]
 
+        self.pitch_action_history = deque(maxlen=5)  # store only ±1
+        self.yaw_action_history   = deque(maxlen=5)
+
+        
         # Simulator
         self.sim = CoherentBremsstrahlungSimulator(
             base_peak_position=base_peak_position,
@@ -57,17 +62,18 @@ class CoherentGoniometerEnv(gym.Env):
         # Action space: pitch, yaw ∈ {-1,0,+1}
         self.action_space = spaces.MultiDiscrete([3, 3])
 
-        # Observation space
         self.observation_space = spaces.Box(
             low=np.array([
                 0.0,        # beam energy
                 0.0,        # coherent edge
-                -np.inf,    # pitch
-                -np.inf,    # yaw
+                -np.inf,    # true pitch
+                -np.inf,    # true yaw
                 0.0,        # dose
-                0.0,         # orientation index
-                -1.0        #sign error
-            ]),
+                0.0,        # orientation index
+                -1.0,       # sign error
+                -1.0, -1.0, -1.0, -1.0, -1.0,  # last 5 pitch actions
+                -1.0, -1.0, -1.0, -1.0, -1.0   # last 5 yaw actions
+            ], dtype=np.float32),
             high=np.array([
                 np.inf,
                 np.inf,
@@ -75,13 +81,20 @@ class CoherentGoniometerEnv(gym.Env):
                 np.inf,
                 np.inf,
                 3.0,
-                1.0
-            ]),
+                1.0,
+                1.0, 1.0, 1.0, 1.0, 1.0,
+                1.0, 1.0, 1.0, 1.0, 1.0
+            ], dtype=np.float32),
             dtype=np.float32
         )
 
+
         self._step_count = 0
 
+    def _pad_history(self, history, length=5):
+        padded = [0.0] * (length - len(history)) + list(history)
+        return padded
+        
 
     def _sign_error(self, peak):
         """
@@ -102,6 +115,10 @@ class CoherentGoniometerEnv(gym.Env):
 
     def _get_obs(self, peak):
         sign_error = self._sign_error(peak)
+
+        pitch_hist = self._pad_history(self.pitch_action_history)
+        yaw_hist   = self._pad_history(self.yaw_action_history)
+
         return np.array([
             self.beam_energy_E0,
             self.coherent_edge_Ei,
@@ -109,9 +126,10 @@ class CoherentGoniometerEnv(gym.Env):
             self.sim.goni.return_diamond_yaw(),
             self.sim.dose.dose,
             self.orientation_index,
-            sign_error
+            sign_error,
+            *pitch_hist,
+            *yaw_hist
         ], dtype=np.float32)
-    
 
     # ----------------------------------------------------
     # Gym API
@@ -136,13 +154,26 @@ class CoherentGoniometerEnv(gym.Env):
             delta_dose=0.0
         )
 
+        self.pitch_action_history.clear()
+        self.yaw_action_history.clear()
+
         return self._get_obs(peak), {}
 
 
     def step(self, action):
         self._step_count += 1
-
+        
         pitch_a, yaw_a = action
+
+        pitch_dir = self._map_action(pitch_a)
+        yaw_dir   = self._map_action(yaw_a)
+        
+        if pitch_dir != 0:
+            self.pitch_action_history.append(pitch_dir)
+            
+        if yaw_dir != 0:
+            self.yaw_action_history.append(yaw_dir)
+        
         dp = self._map_action(pitch_a) * self.pitch_step_deg
         dy = self._map_action(yaw_a)   * self.yaw_step_deg
 
