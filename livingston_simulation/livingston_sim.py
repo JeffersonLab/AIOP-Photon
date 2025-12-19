@@ -159,7 +159,7 @@ class Goniometer:
     def change_diamond_angles(self, motor, signed_nudge_size):
 
         if abs(signed_nudge_size)<0.0001:
-            print("nudge of size less than a 1/10 millidegree given, ignoring")
+            #print("nudge of size less than a 1/10 millidegree given, ignoring")
             return
 
         if motor=="pitch":
