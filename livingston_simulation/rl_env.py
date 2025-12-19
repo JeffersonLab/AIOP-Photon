@@ -105,12 +105,13 @@ class CoherentGoniometerEnv(gym.Env):
         return np.array([
             self.beam_energy_E0,
             self.coherent_edge_Ei,
-            self.sim.state.pitch_deg,
-            self.sim.state.yaw_deg,
+            self.sim.goni.return_diamond_pitch(),
+            self.sim.goni.return_diamond_yaw(),
             self.sim.dose.dose,
             self.orientation_index,
             sign_error
         ], dtype=np.float32)
+    
 
     # ----------------------------------------------------
     # Gym API
@@ -163,8 +164,8 @@ class CoherentGoniometerEnv(gym.Env):
             "error": error,
             "delta_c": delta_c,
             "dose": self.sim.dose.dose,
-            "pitch_deg": self.sim.state.pitch_deg,
-            "yaw_deg": self.sim.state.yaw_deg,
+            "pitch_deg": self.sim.goni.return_diamond_pitch(),
+            "yaw_deg": self.sim.goni.return_diamond_yaw(),
             "orientation": self.orientation_label
         }
 
