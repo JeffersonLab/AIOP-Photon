@@ -34,8 +34,8 @@ def compute_peak_energy(params):
     h_incoh.SetDirectory(0)
 
 
-    thetah_eff = yaw_true + beam_delh
-    thetav_eff = pitch_true + beam_delv
+    thetav_eff = yaw_true + beam_delh
+    thetah_eff = pitch_true + beam_delv
     base_args["thetah"], base_args["thetav"] = thetah_eff, thetav_eff
     
     beamx = np.random.normal(base_args["xoffset"], base_args["beamx_noise"])
