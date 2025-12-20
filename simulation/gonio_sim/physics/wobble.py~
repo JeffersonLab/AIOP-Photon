@@ -1,0 +1,3 @@
+import numpy as np
+def apply_wobble(angle, amp, period, phase):
+    return angle + amp * np.sin(2*np.pi*angle/period + phase) if amp and period else angle

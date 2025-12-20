@@ -1,0 +1,33 @@
+# Nominal base_args and wobble/backlash defaults
+radname: JD70-103
+iradview: 0
+ebeam: 11.7
+ibeam: 2.2
+xyresol: 0.01
+xoffset: -0.38
+yoffset: 3.13
+xsigma: 1.0
+ysigma: 0.5
+xycorr: 0.42
+peresol: 0.005
+penergy0: 4.5
+penergy1: 11.0
+tiltrange: 1.0
+tiltresol: 0.01
+ebeamrms: 0.001
+emittance: 4.2e-9
+vspotrms: 0.5
+coldiam: 3.4
+coldist: 76.0
+radthick: 50.0
+beamx_noise: 0.1
+beamy_noise: 0.1
+
+wobble:
+  yaw_amp: 0.0004
+  yaw_period: 0.05
+  pitch_amp: 0.0006
+  pitch_period: 0.01
+
+backlash_n: 2.0    # steps (can be fractional)
+step_mrad: 0.01745 # 1 millidegree

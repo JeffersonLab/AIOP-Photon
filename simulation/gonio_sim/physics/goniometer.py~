@@ -1,0 +1,78 @@
+import numpy as np
+
+
+def compute_goniometer_angles(phi, c, i, offsets):
+    phi0, Bv, Bh, Theta, Phi = (
+        offsets["phi0"], offsets["Bv"], offsets["Bh"], offsets["Theta"], offsets["Phi"]
+    )
+    Ga = phi - phi0
+    Gv = c*np.cos(phi) - i*np.sin(phi) - Theta*np.cos(Ga + Phi) + Bv
+    Gh = c*np.sin(phi) + i*np.cos(phi) - Theta*np.sin(Ga + Phi) + Bh
+    return Ga, Gv, Gh
+
+
+
+
+def compute_peak_energy(params):
+    (
+        i, total,
+        yaw_true_nowobble, pitch_true_nowobble,
+        yaw_true, pitch_true,
+        yaw_readback, pitch_readback,
+        beam_delh, beam_delv,
+        base_args, dose, damage, offsets,
+    ) = params
+    
+
+    ROOT = init_root(base_args)
+
+
+    h_incoh = ROOT.amorph_intensity(
+        base_args["ebeam"], base_args["ibeam"],
+        base_args["peresol"], base_args["penergy0"], base_args["penergy1"]
+    )[0]
+    h_incoh.SetDirectory(0)
+
+
+    thetah_eff = yaw_true + beam_delh
+    thetav_eff = pitch_true + beam_delv
+    base_args["thetah"], base_args["thetav"] = thetah_eff, thetav_eff
+    
+    beamx = np.random.normal(base_args["xoffset"], base_args["beamx_noise"])
+    beamy = np.random.normal(base_args["yoffset"], base_args["beamy_noise"])
+    base_args["xoffset"], base_args["yoffset"] = beamx, beamy
+    
+
+    hlist = ROOT.cobrems_intensity(
+        base_args["radname"], base_args["iradview"],
+        base_args["ebeam"], base_args["ibeam"],
+        base_args["xyresol"], base_args["thetah"], base_args["thetav"],
+        base_args["xoffset"], base_args["yoffset"], base_args["phideg"],
+        base_args["xsigma"], base_args["ysigma"], base_args["xycorr"],
+        base_args["peresol"], base_args["penergy0"], base_args["penergy1"], 0
+    )
+    h_coh = hlist[0]
+    h_coh.SetDirectory(0)
+
+    n_bins = h_coh.GetNbinsX()
+    energy = np.array([h_coh.GetBinCenter(b) for b in range(1, n_bins + 1)])
+    y_coh = np.array([h_coh.GetBinContent(b) for b in range(1, n_bins + 1)])
+    y_inc = np.array([h_incoh.GetBinContent(b) for b in range(1, n_bins + 1)])
+    
+
+    E_MeV = 1000.0 * energy
+    y_coh = damage.apply(E_MeV, y_coh, dose)
+    enhancement = np.divide(y_coh, y_inc, out=np.zeros_like(y_coh), where=y_inc != 0)
+    peak_energy = float(energy[np.nanargmax(enhancement)])
+
+    phi = np.deg2rad(base_args["phideg"])
+    c, i_angle = pitch_true * 1e-3, yaw_true * 1e-3
+    Ga, Gv, Gh = compute_goniometer_angles(phi, c, i_angle, offsets)
+    
+    return (
+        yaw_readback, pitch_readback, yaw_true_nowobble, pitch_true_nowobble, yaw_true, pitch_true,
+        beam_delh, beam_delv,
+        thetah_eff, thetav_eff,
+        beamx, beamy, peak_energy,
+        np.rad2deg(Ga), np.rad2deg(Gv), np.rad2deg(Gh)
+    )
