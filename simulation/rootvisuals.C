@@ -21,7 +21,7 @@
 #include "Couples.h"
 #include "CobremsGeneration.hh"
 
-TString resultsdir("/home/patrick/AIOP-Photon/simulation/tmp");
+TString resultsdir("/w/halld-scshelf2101/home/gjwei/AIOP/sept2025/AIOP-Photon/simulation/tmp");
 
 // These defaults can be changed from the spotfinder web tool
 CobremsGeneration cobrems(12.0, 9.0);

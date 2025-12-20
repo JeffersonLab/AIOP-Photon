@@ -1,8 +1,8 @@
 from .backlash import AxisBacklashState, step_with_backlash
 from .wobble import apply_wobble
 from .root_io import init_root
-from .goniometer import compute_goniometer_angles, compute_peak_energy
+from .goniometer import compute_goniometer_angles, compute_peak_energy, Goniometer
 __all__ = [
     "AxisBacklashState", "step_with_backlash", "apply_wobble",
-    "init_root", "compute_goniometer_angles", "compute_peak_energy"
+    "init_root", "compute_goniometer_angles", "compute_peak_energy", "Goniometer"
 ]

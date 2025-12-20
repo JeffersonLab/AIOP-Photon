@@ -1,40 +1,48 @@
 import numpy as np
 
-ORIENTATION_TO_PHI = {
-    "PARA 0/90":    0.0,
-    "PERP 0/90":   90.0,
-    "PARA 45/135": 135.0,
-    "PERP 45/135": 45.0,
-}
+def orientation_to_phi_deg(orientation):
+
+    orientation = orientation.strip().upper()
+
+    mapping = {
+        "PARA 0/90":   0.0,
+        "PERP 0/90":  90.0,
+        "PARA 45/135": 135.0,
+        "PERP 45/135": 45.0,
+    }
+
+    if orientation not in mapping:
+        raise ValueError(
+            f"Unknown orientation '{orientation}'. "
+            f"Valid options: {list(mapping.keys())}"
+        )
+
+    return mapping[orientation]
 
 
-def get_sign(value):
-    if value>0:
-        return 1
-    elif value<0:
-        return -1
-    else:
-        return 0
+
+# ============================================================
+# USER-DEFINED PHYSICS HOOKS (FILL THESE IN)
+# ============================================================
 
 def delta_c_from_pitch_yaw(
-    delta_h_deg, #pitch
-    delta_v_deg, #yaw
-    phi_deg,
+    pitch_change_deg,
+    yaw_change_deg,
+    orientation: CrystalOrientation,
     beam_pitch_deg=0.0,
     beam_yaw_deg=0.0
 ):
-    delta_h_rad = np.deg2rad(delta_h_deg)
-    delta_v_rad = np.deg2rad(delta_v_deg)    
-    phi_rad = np.deg2rad(phi_deg)    
-    delta_c_rad = delta_v_rad * np.cos(phi_rad) + delta_h_rad * np.sin(phi_rad)
-    return delta_c_rad
 
-def delta_c_to_peak(delta_c_rad, E0, Ei):
-    g = 2.
+        raise NotImplementedError
+
+    else:
+        raise ValueError(f"Unknown orientation: {orientation}")
+
+
+def delta_c_to_peak_shift(delta_c_rad, E0, Ei):
+    g = 2
     k = 26.5601
-    
-    deltaE = (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
-
+    deltaE = (delta_c * (E0 - Ei)**2 ) / (k/g + delta_c * (E0 - E) )
     return deltaE
 
 
@@ -45,7 +53,7 @@ class Goniometer:
     def __init__(self, run_period):
 
         # possible diamond orientations [should I include amorphous?] 
-        self.orientations = ["PERP 0/90","PARA 0/90","PERP 45/135","PARA 45/135"]
+        self.orientations = ["0/90 PERP","0/90 PARA","45/135 PERP","45/135 PARA"]
 
         self.current_orientation = "Undefined"
         self.current_set_yaw = 0
@@ -159,7 +167,7 @@ class Goniometer:
     def change_diamond_angles(self, motor, signed_nudge_size):
 
         if abs(signed_nudge_size)<0.0001:
-            #print("nudge of size less than a 1/10 millidegree given, ignoring")
+            print("nudge of size less than a 1/10 millidegree given, ignoring")
             return
 
         if motor=="pitch":
@@ -248,10 +256,19 @@ class Goniometer:
     def return_set_roll(self):
         return self.current_set_roll
 
+############################################
+# GONIOMETER CLASS
+############################################
+
 class BeamState:
+    """
+    Tracks beam alignment.
+    """
+
     def __init__(self, beam_pitch_deg=0.0, beam_yaw_deg=0.0):
         self.beam_pitch_deg = beam_pitch_deg
         self.beam_yaw_deg = beam_yaw_deg
+
 
 
 class DiamondDose:
@@ -270,26 +287,24 @@ class DiamondDose:
 
 
 class CoherentPeakTracker:
-    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei):
+
+    def __init__(
+        self,
+        base_peak_position,
+        dose_slope
+    ):
         self.base_peak_position = base_peak_position
         self.dose_slope = dose_slope
-        self.E0 = beam_energy_E0
-        self.Ei = coherent_edge_Ei
 
-        self.current_peak_position = float(base_peak_position)
+    def peak_position(self, delta_c_rad, dose):
+        peak_shift_c = delta_c_to_peak_shift(delta_c_rad)
+        peak_shift_dose = self.dose_slope * dose
 
-    def reset(self):
-        self.current_peak_position = float(self.base_peak_position)
-
-    def update(self, delta_c_rad, dose):
-
-        deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.Ei)
-
-        dose_shift = self.dose_slope * dose
-
-        self.current_peak_position = self.base_peak_position + dose_shift + (self.current_peak_position - self.base_peak_position) + deltaE_step
-
-        return self.current_peak_position
+        return (
+            self.base_peak_position
+            + peak_shift_c
+            + peak_shift_dose
+        )
 
 
 # ============================================================
@@ -297,39 +312,42 @@ class CoherentPeakTracker:
 # ============================================================
 
 class CoherentBremsstrahlungSimulator:
+    """
+    Combines:
+    - goniometer + beam state
+    - crystal orientation
+    - dose tracking
+    - coherent peak model
+    """
+
     def __init__(
         self,
         base_peak_position,
         dose_slope,
-        beam_energy_E0,
-        coherent_edge_Ei,
-        orientation,
+        orientation=CrystalOrientation.PARA_0_90,
         run_period="2020"
     ):
         self.beam_state = BeamState()
         self.orientation = orientation
 
-        self.goni = Goniometer(run_period=run_period)
+        self.goni = Goniometer(run_period="2020")
         self.goni.change_orientation(orientation)
-
-        self.phi_deg = ORIENTATION_TO_PHI[orientation]
 
         self.dose = DiamondDose()
         self.peak = CoherentPeakTracker(
             base_peak_position=base_peak_position,
-            dose_slope=dose_slope,
-            beam_energy_E0=beam_energy_E0,
-            coherent_edge_Ei=coherent_edge_Ei
+            dose_slope=dose_slope
         )
 
-
-
-    def step(self, dpitch_deg, dyaw_deg, delta_dose):
+    def step(
+        self,
+        dpitch_deg=0.0,
+        dyaw_deg=0.0,
+        delta_dose=0.0
+    ):
         """
         Apply a goniometer move and dose increment.
-
-        Returns:
-            delta_c_deg, peak_position
+        Returns updated peak position.
         """
         
         prev_true_pitch = self.goni.return_diamond_pitch()
@@ -347,30 +365,27 @@ class CoherentBremsstrahlungSimulator:
         self.dose.add(delta_dose)
 
         delta_c = delta_c_from_pitch_yaw(
-            delta_h_deg=pitch_true_change_deg,
-            delta_v_deg=yaw_true_change_deg,
-            phi_deg=self.phi_deg,
+            pitch_change_deg=pitch_true_change_deg,
+            yaw_change_deg=yaw_true_change_deg,
+            orientation=self.orientation,
             beam_pitch_deg=self.beam_state.beam_pitch_deg,
             beam_yaw_deg=self.beam_state.beam_yaw_deg
         )
 
-        peak = self.peak.update(delta_c_rad=delta_c, dose=self.dose.dose)
-
-        return delta_c, peak
-    
+        return self.peak.peak_position(
+            delta_c_rad=delta_c,
+            dose=self.dose.dose
+        )
 
 # ============================================================
 # MAIN SIMULATION
 # ============================================================
 
 def main():
-
     sim = CoherentBremsstrahlungSimulator(
-        base_peak_position=8600,   # MeV
-        dose_slope=0.05,           # MeV / dose
-        beam_energy_E0=11600.0,    # MeV
-        coherent_edge_Ei=8600.0,   # MeV
-        orientation="PARA 0/90"
+        base_peak_position=100.0,   # MeV
+        dose_slope=0.05,            # MeV per dose unit
+        orientation=CrystalOrientation.PARA_45_135
     )
 
     # Beam misalignment
@@ -378,24 +393,25 @@ def main():
     sim.beam_state.beam_yaw_deg = -0.02
 
     print("Step | Pitch(deg) | Yaw(deg) | Dose | Delta c | Peak")
-    print("-" * 65)
+    print("-" * 60)
 
+    # Simple scan
     for i in range(10):
         delta_c, peak = sim.step(
-            dpitch_deg=+0.001,
-            dyaw_deg=+0.001,
-            delta_dose=0.0
+            dpitch_deg=0.01,
+            dyaw_deg=-0.005,
+            delta_dose=0.2
         )
 
         print(
             f"{i:4d} | "
-            f"{sim.goni.return_diamond_pitch():10.4f} | "
-            f"{sim.goni.return_diamond_yaw():8.4f} | "
+            f"{sim.state.pitch_deg:10.4f} | "
+            f"{sim.state.yaw_deg:8.4f} | "
             f"{sim.dose.dose:4.1f} | "
-            f"{delta_c:7.7f} | "
+            f"{delta_c:7.4f} | "
             f"{peak:7.3f}"
         )
 
-        
+
 if __name__ == "__main__":
     main()

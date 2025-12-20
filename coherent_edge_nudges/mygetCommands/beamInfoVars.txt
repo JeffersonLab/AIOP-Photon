@@ -1,0 +1,45 @@
+# detailed information about the beam, read every second (most likely)
+# for Spring 20
+myget -m history -c 'HALLD:p' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/ebeam_energy.txt
+myget -m history -c 'HD:CBREM:EDGE' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/photonbeam_energy.txt
+myget -m history -c 'HD:CBREM:REQ_EDGE' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/photonbeam_energy_desired.txt
+myget -m history -c 'HD:CBREM:WIDTH' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/photonbeam_energy_uncertainty.txt
+myget -m history -c 'AC:inner:position:x' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/ac_x.txt
+myget -m history -c 'AC:inner:position:y' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/ac_y.txt
+myget -m history -c 'IPM5C11B.XPOS' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/ebeam_x.txt
+myget -m history -c 'IPM5C11B.YPOS' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/ebeam_y.txt
+myget -m history -c 'IBCAD00CRCUR6' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/ebeam_current.txt
+myget -m history -c 'HD:GONI:RADIATOR_NAME' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/radiator_name.txt
+myget -m history -c 'HD:GONI:RADIATOR_ID' -b '2020-01-10 00:00:00' -e '2020-09-21 12:00:00' | tee Spring20/radiator_id.txt
+
+
+
+
+# for Spring 23
+
+myget -m history -c 'HALLD:p' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/ebeam_energy.txt
+myget -m history -c 'HD:CBREM:EDGE' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/photonbeam_energy.txt
+myget -m history -c 'HD:CBREM:REQ_EDGE' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/photonbeam_energy_desired.txt
+myget -m history -c 'HD:CBREM:WIDTH' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/photonbeam_energy_uncertainty.txt
+myget -m history -c 'AC:inner:position:x' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/ac_x.txt
+myget -m history -c 'AC:inner:position:y' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/ac_y.txt
+myget -m history -c 'IPM5C11B.XPOS' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/ebeam_x.txt
+myget -m history -c 'IPM5C11B.YPOS' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/ebeam_y.txt
+myget -m history -c 'IBCAD00CRCUR6' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/ebeam_current.txt
+myget -m history -c 'HD:GONI:RADIATOR_NAME' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/radiator_name.txt
+myget -m history -c 'HD:GONI:RADIATOR_ID' -b '2023-01-21 00:00:00' -e '2023-03-19 22:00:00' | tee Spring23/radiator_id.txt
+
+
+# for Spring 25
+
+myget -c 'HALLD:p' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/ebeam_energy.txt
+myget -c 'HD:CBREM:EDGE' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/photonbeam_energy.txt
+myget -c 'HD:CBREM:REQ_EDGE' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/photonbeam_energy_desired.txt
+myget -c 'HD:CBREM:WIDTH' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/photonbeam_energy_uncertainty.txt
+myget -c 'AC:inner:position:x' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/ac_x.txt
+myget -c 'AC:inner:position:y' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/ac_y.txt
+myget -c 'IPM5C11B.XPOS' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/ebeam_x.txt
+myget -c 'IPM5C11B.YPOS' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/ebeam_y.txt
+myget -c 'IBCAD00CRCUR6' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/ebeam_current.txt
+myget -c 'HD:GONI:RADIATOR_NAME' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/radiator_name.txt
+myget -c 'HD:GONI:RADIATOR_ID' -b '2025-05-03 20:00:00' -e '2025-06-15 23:59:00' | tee Spring25/radiator_id.txt
