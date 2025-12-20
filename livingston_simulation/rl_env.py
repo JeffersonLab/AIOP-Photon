@@ -11,11 +11,14 @@ class CoherentGoniometerEnv(gym.Env):
     metadata = {"render_modes": []}
 
     # Orientation mapping (authoritative)
+    # TODO: previous vibe-session ordering (kept for verification):
+    # ORIENTATIONS = ["PARA 0/90", "PERP 0/90", "PARA 45/135", "PERP 45/135"]
     ORIENTATIONS = [
-        "PARA 0/90",
+        "AMORPHOUS",
         "PERP 0/90",
-        "PARA 45/135",
+        "PARA 0/90",
         "PERP 45/135",
+        "PARA 45/135",
     ]
 
     def __init__(
@@ -25,10 +28,15 @@ class CoherentGoniometerEnv(gym.Env):
         base_peak_position=8600.0, # MeV
         dose_slope=0.05,
         orientation_index=0,
+        run_period="2020",
         pitch_step_deg=1e-3,
         yaw_step_deg=1e-3,
         dose_per_step=0.1,
         max_steps=500,
+        use_streamlined_peaks=True,
+        nudge_energy_size_pitch=10.0,
+        nudge_energy_size_yaw=10.0,
+        latency_setpoint_to_readback=8,
     ):
         super().__init__()
 
@@ -38,13 +46,22 @@ class CoherentGoniometerEnv(gym.Env):
         self.yaw_step_deg = yaw_step_deg
         self.dose_per_step = dose_per_step
         self.max_steps = max_steps
+        self.use_streamlined_peaks = use_streamlined_peaks
+        self.nudge_energy_size_pitch = nudge_energy_size_pitch
+        self.nudge_energy_size_yaw = nudge_energy_size_yaw
+        self.latency_setpoint_to_readback = latency_setpoint_to_readback
+        self.run_period = run_period
 
         # Orientation handling
-        if not (0 <= orientation_index < 4):
-            raise ValueError("orientation_index must be in {0,1,2,3}")
+        if not (0 <= orientation_index < len(self.ORIENTATIONS)):
+            raise ValueError("orientation_index must be in {0,1,2,3,4}")
 
         self.orientation_index = orientation_index
         self.orientation_label = self.ORIENTATIONS[orientation_index]
+
+        if self.orientation_label == "AMORPHOUS":
+            self.coherent_edge_Ei = 0.0
+            base_peak_position = 0.0
 
         self.pitch_action_history = deque(maxlen=5)  # store only ±1
         self.yaw_action_history   = deque(maxlen=5)
@@ -57,6 +74,11 @@ class CoherentGoniometerEnv(gym.Env):
             beam_energy_E0=self.beam_energy_E0,
             coherent_edge_Ei=self.coherent_edge_Ei,
             orientation=self.orientation_label,
+            run_period=self.run_period,
+            use_streamlined_energy=self.use_streamlined_peaks,
+            nudge_energy_size_pitch=self.nudge_energy_size_pitch,
+            nudge_energy_size_yaw=self.nudge_energy_size_yaw,
+            latency_setpoint_to_readback=self.latency_setpoint_to_readback,
         )
 
         # Action space: pitch, yaw ∈ {-1,0,+1}
@@ -144,6 +166,11 @@ class CoherentGoniometerEnv(gym.Env):
             beam_energy_E0=self.beam_energy_E0,
             coherent_edge_Ei=self.coherent_edge_Ei,
             orientation=self.orientation_label,
+            run_period=self.run_period,
+            use_streamlined_energy=self.use_streamlined_peaks,
+            nudge_energy_size_pitch=self.nudge_energy_size_pitch,
+            nudge_energy_size_yaw=self.nudge_energy_size_yaw,
+            latency_setpoint_to_readback=self.latency_setpoint_to_readback,
         )
 
         self._step_count = 0
