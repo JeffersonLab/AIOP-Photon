@@ -29,6 +29,7 @@ ORIENTATION_MODE_MAP = {
 # Run-period specific sign overrides (only cases we have evidence for)
 SIGN_OVERRIDES = {
     ("2023", "PERP 0/90"): -1,  # Spring 2023 PERP 0/90 uses opposite energy sign
+    ("2025", "PARA 45/135"): -1,# Spring 2025 PARA 45/135 uses opposite energy sign
 }
 
 
