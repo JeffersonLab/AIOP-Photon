@@ -36,7 +36,7 @@ class CoherentGoniometerEnv(gym.Env):
         use_streamlined_peaks=True,
         nudge_energy_size_pitch=10.0,
         nudge_energy_size_yaw=10.0,
-        latency_setpoint_to_readback=8,
+        latency_setpoint_to_readback=0,
     ):
         super().__init__()
 
