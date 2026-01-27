@@ -336,7 +336,7 @@ class CoherentBremsstrahlungSimulator:
         self.phi_deg = ORIENTATION_TO_PHI[orientation]
 
         self.dose = DiamondDose()
-        self.peak = CoherentPeakTracker(
+        self.peak_tracker = CoherentPeakTracker(
             base_peak_position=base_peak_position,
             dose_slope=dose_slope,
             beam_energy_E0=beam_energy_E0,
@@ -377,7 +377,7 @@ class CoherentBremsstrahlungSimulator:
             beam_yaw_deg=self.beam_state.beam_yaw_deg
         )
 
-        peak = self.peak.update(delta_c_rad=delta_c, dose=self.dose.dose)
+        peak = self.peak_tracker.update(delta_c_rad=delta_c, dose=self.dose.dose)
 
         return delta_c, peak
     
