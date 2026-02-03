@@ -171,8 +171,11 @@ class CoherentGoniometerEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
+        peak_offset = self.np_random.uniform(low=-50.0, high=50.0)
+        randomized_peak = self.coherent_edge_Ei + peak_offset
+
         self.sim = CoherentBremsstrahlungSimulator(
-            base_peak_position=self.coherent_edge_Ei,
+            base_peak_position=randomized_peak,
             dose_slope=self.sim.peak_tracker.dose_slope,
             beam_energy_E0=self.beam_energy_E0,
             coherent_edge_Ei=self.coherent_edge_Ei,
@@ -233,18 +236,22 @@ class CoherentGoniometerEnv(gym.Env):
         # reward = -abs(error)
         reward = self.calculate_reward(relative_error)
 
-        action_penalty = (pitch_dir**2 + yaw_dir**2)**0.5 * 0.01  # small penalty for taking an action
+        reward -= 1
+
+        action_penalty = (pitch_dir**2 + yaw_dir**2)**0.5   # small penalty for taking an action
         reward -= action_penalty
 
         # Termination
-        if np.absolute(error) / self.coherent_edge_Ei < 0.001:
+        if relative_error < 0.001:
             terminated = True
+            reward += 200
         else:
             terminated = False
 
 
         if self._step_count >= self.max_steps:
             terminated = True
+            reward -= 10
 
         truncated = False
 
@@ -261,7 +268,7 @@ class CoherentGoniometerEnv(gym.Env):
         return self._get_obs(peak), reward, terminated, truncated, info
 
     def calculate_reward(self, relative_error):
-        a = 10  # Maximum reward
+        a = 1  # Maximum reward
         b = 0.01  # Controls the steepness of the curve
         c = 0.001  # Controls the center point of the curve
         safe_exp = np.clip((relative_error - c) / b, -709, 709)  # Prevent exp overflow
