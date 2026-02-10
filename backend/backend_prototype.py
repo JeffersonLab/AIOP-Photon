@@ -82,12 +82,11 @@ class PvMap:
 # -------------------------------
 @dataclasses.dataclass
 class SafetyLimits:
-    min_beam_current: float = 100.0
-    pitch_min: float = -10.0
-    pitch_max: float = 10.0
-    yaw_min: float = -10.0
-    yaw_max: float = 10.0
-    max_step_per_cycle: float = 0.25
+    min_beam_current: float = 100.0 #nA
+    pitch_min: float = -10.0 #deg
+    pitch_max: float = 10.0 #deg
+    yaw_min: float = -10.0 #deg
+    yaw_max: float = 10.0 #deg
 
 
 # -------------------------------
