@@ -60,17 +60,7 @@ class PvMap:
     def from_json(path: str) -> "PvMap":
         with open(path, "r") as f:
             obj = json.load(f)
-        return PvMap(
-            beam_current=obj["beam_current"],
-            gonio_pitch_readback=obj["gonio_pitch_readback"],
-            gonio_pitch_setpoint=obj["gonio_pitch_setpoint"],
-            gonio_yaw_readback=obj["gonio_yaw_readback"],
-            gonio_yaw_setpoint=obj["gonio_yaw_setpoint"],
-            cbrem_plane=obj["cbrem_plane"],
-            cbrem_phipol=obj["cbrem_phipol"],
-            peak_mev=obj["peak_mev"],
-            dose=obj["dose"],
-        )
+        return PvMap(**obj)
 
     @staticmethod
     def example() -> "PvMap":
