@@ -11,7 +11,12 @@ import os
 import signal
 import sys
 import time
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Dict
+import pandas as pd
+
+from jlab_archiver_client.config import config as mya_config
+from jlab_client_archiver import Interval
+
 
 # -------------------------------
 # EPICS Interface Layer
@@ -111,6 +116,44 @@ class Action:
     model_used: str = ""
     orientation_label: str = ""
 
+
+
+class MyaReader:
+    """
+    Read-only: fetch latest archived values for PVs using MYA/myquery.
+    """
+    def __init__(self, lookback_s: float = 120.0, deployment: str | None = None):
+        self.lookback_s = float(lookback_s)
+        self.deployment = deployment  # often you can omit; docs show 'docker' for local testing
+
+    def get_latest_many(self, pvlist: list[str]) -> Dict[str, Optional[float]]:
+        end = dt.datetime.now()
+        begin = end - dt.timedelta(seconds=self.lookback_s)
+
+        # Pull a window for each PV, in parallel; returns a DataFrame indexed by timestamps
+        data, disconnects, metadata = Interval.run_parallel(
+            pvlist=pvlist,
+            begin=begin,
+            end=end,
+            deployment=self.deployment,
+            prior_point=True,   # helpful to get a value even if no update occurred in the window
+        )  # documented pattern :contentReference[oaicite:7]{index=7}
+
+        out: Dict[str, Optional[float]] = {pv: None for pv in pvlist}
+        if data is None or len(data.index) == 0:
+            return out
+
+        # For each PV column, take last non-NaN value
+        for pv in pvlist:
+            if pv in data.columns:
+                s = data[pv].dropna()
+                out[pv] = float(s.iloc[-1]) if len(s) else None
+        return out
+
+    def get_latest(self, pv: str) -> Optional[float]:
+        return self.get_latest_many([pv]).get(pv)
+
+    
 # -------------------------------
 # Control Model Interface
 # -------------------------------
@@ -376,7 +419,19 @@ class ControlLoop:
     def _read_state(self) -> PlantState:
         ts = time.time()
 
-        beam_current = self._to_float(self.client.get(self.pv.beam_current))
+        # One batched MYA query for all PVs needed for state
+        pvs = [
+            self.pv.beam_current,
+            self.pv.gonio_pitch_readback,
+            self.pv.gonio_yaw_readback,
+            self.pv.cbrem_plane,
+            self.pv.cbrem_phipol,
+            self.pv.peak_mev,
+            self.pv.dose,
+        ]
+        latest = self.reader.get_latest_many(pvs)
+
+
         pitch = self._to_float(self.client.get(self.pv.gonio_pitch_readback))
         yaw = self._to_float(self.client.get(self.pv.gonio_yaw_readback))
 
@@ -446,8 +501,30 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = parse_args(argv)
-    pvmap = load_pvmap(args.pvmap); limits = SafetyLimits(); logger = DecisionLogger(args.logdir, args.no_act)
-    client = EpicsClient()
+    pvmap = load_pvmap(args.pvmap)
+    limits = SafetyLimits()
+    logger = DecisionLogger(args.logdir, args.no_act)
+
+    myquery_server = os.getenv("MYQUERY_SERVER", "epicsweb.jlab.org")
+    myquery_protocol = os.getenv("MYQUERY_PROTOCOL", "https")
+    
+
+    try:
+        from jlab_archiver_client.config import config as mya_config
+        mya_config.set(myquery_server=myquery_server, protocol=myquery_protocol)
+    except Exception as e:
+        print("[ERROR] jlab_archiver_client not available or MYA config failed. "
+              "Install with: pip install jlab_archiver_client")
+        raise
+
+    # Look back far enough to find an archived sample even if PV updates are sparse.
+    # (e.g., 8x loop interval, but at least 60s)
+    lookback_s = max(60.0, float(args.interval) * 8.0)
+    
+    reader = MyaReader(lookback_s=lookback_s)
+    
+    #keep Epics for setting the pitch and yaw
+    actuator = EpicsClient() 
     model = RLPolicyModel(checkpoint_path=args.rl_checkpoint, scale=args.rl_scale)
     loop = ControlLoop(client, pvmap, limits, model, args.interval, logger, no_act=args.no_act)
     try:
