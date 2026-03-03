@@ -288,7 +288,7 @@ class DiamondDose:
 
 
 class CoherentPeakTracker:
-    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei, run_period, orientation):
+    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei, run_period, orientation, accumulated_dose):
         self.base_peak_position = base_peak_position
         self.dose_slope = dose_slope
         self.E0 = beam_energy_E0
@@ -296,19 +296,20 @@ class CoherentPeakTracker:
         self.run_period = run_period
         self.orientation = orientation
 
-        self.current_peak_position = float(base_peak_position)
+        initial_dose_shift = self.dose_slope * accumulated_dose
+        self.current_peak_position = float(base_peak_position) + initial_dose_shift
 
     def reset(self):
         self.current_peak_position = float(self.base_peak_position)
 
-    def update(self, delta_c_rad, dose):
+    def update(self, delta_c_rad, delta_dose):
 
         # deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.Ei)
         deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.current_peak_position, self.run_period, self.orientation)
 
-        dose_shift = self.dose_slope * dose
+        delta_dose_shift = self.dose_slope * delta_dose
 
-        self.current_peak_position = self.base_peak_position + dose_shift + (self.current_peak_position - self.base_peak_position) + deltaE_step
+        self.current_peak_position = self.base_peak_position + delta_dose_shift + (self.current_peak_position - self.base_peak_position) + deltaE_step
 
         return self.current_peak_position
 
@@ -326,6 +327,7 @@ class CoherentBremsstrahlungSimulator:
         coherent_edge_Ei,
         orientation,
         run_period,
+        accumulated_dose=0.0,
     ):
         self.beam_state = BeamState()
         self.orientation = orientation
@@ -335,14 +337,15 @@ class CoherentBremsstrahlungSimulator:
 
         self.phi_deg = ORIENTATION_TO_PHI[orientation]
 
-        self.dose = DiamondDose()
+        self.dose = DiamondDose(dose=accumulated_dose)
         self.peak_tracker = CoherentPeakTracker(
             base_peak_position=base_peak_position,
             dose_slope=dose_slope,
             beam_energy_E0=beam_energy_E0,
             coherent_edge_Ei=coherent_edge_Ei,
             run_period=run_period,
-            orientation=orientation
+            orientation=orientation,
+            accumulated_dose=accumulated_dose
         )
 
 
@@ -377,7 +380,7 @@ class CoherentBremsstrahlungSimulator:
             beam_yaw_deg=self.beam_state.beam_yaw_deg
         )
 
-        peak = self.peak_tracker.update(delta_c_rad=delta_c, dose=self.dose.dose)
+        peak = self.peak_tracker.update(delta_c_rad=delta_c, delta_dose=delta_dose)
 
         return delta_c, peak
     
