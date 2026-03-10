@@ -92,22 +92,22 @@ class Goniometer:
         self.backlash_yaw = 4.1/1000.0
 
         # set rough initial goniometer values for each orientation 
-        self.orientation_x = [0, 0, 0, 0, 0]
-        self.orientation_y = [0, 0, 0, 0, 0]
+        self.orientation_x = [0, 0, 0, 0]
+        self.orientation_y = [0, 0, 0, 0]
 
         # based on data from each run period
         if run_period=="2020":
-            self.orientation_pitch = [0.0,0.39,-0.73,0.39,1.81]
-            self.orientation_yaw = [0.0,1.4,2.4,0.73,0.84]
-            self.orientation_roll = [0.0,-10.5,-10.5,34.5,34.5]
+            self.orientation_pitch = [0.39,-0.73,0.39,1.81]
+            self.orientation_yaw = [1.4,2.4,0.73,0.84]
+            self.orientation_roll = [-10.5,-10.5,34.5,34.5]
         elif run_period=="2023":
-            self.orientation_pitch = [0.0,-0.66,0.33,-1.75,-0.28]
-            self.orientation_yaw = [0.0,0.17,1.28,0.96,1.06]
-            self.orientation_roll = [0.0,162,162,-153,-153]
+            self.orientation_pitch = [-0.66,0.33,-1.75,-0.28]
+            self.orientation_yaw = [0.17,1.28,0.96,1.06]
+            self.orientation_roll = [162,162,-153,-153]
         elif run_period=="2025":
-            self.orientation_pitch = [0.0,1.68,0.59,0.46,0.46]
-            self.orientation_yaw = [0.0,1.52,1.94,1.94,0.49]
-            self.orientation_roll = [0.0,-16.6, -16.6, 28.4, 28.4]
+            self.orientation_pitch = [1.68,0.59,0.46,0.46]
+            self.orientation_yaw = [1.52,1.94,1.94,0.49]
+            self.orientation_roll = [-16.6, -16.6, 28.4, 28.4]
         else:
             print("Run period",run_period,"not currently set up")
             exit(0)
@@ -329,9 +329,8 @@ class CoherentBremsstrahlungSimulator:
         run_period,
         accumulated_dose=0.0,
     ):
-        self.run_period = run_period
         self.beam_state = BeamState()
-        self.orientation = normalize_orientation(orientation)
+        self.orientation = orientation
 
         self.goni = Goniometer(run_period=run_period)
         self.goni.change_orientation(orientation)
@@ -358,23 +357,18 @@ class CoherentBremsstrahlungSimulator:
         Returns:
             delta_c_deg, peak_position
         """
+        
         prev_true_pitch = self.goni.return_diamond_pitch()
         prev_true_yaw = self.goni.return_diamond_yaw()
-        prev_set_pitch = self.goni.return_set_pitch()
-        prev_set_yaw = self.goni.return_set_yaw()
 
         self.goni.do_nudge("pitch", dpitch_deg)
         self.goni.do_nudge("yaw", dyaw_deg)
 
         curr_true_pitch = self.goni.return_diamond_pitch()
         curr_true_yaw = self.goni.return_diamond_yaw()
-        curr_set_pitch = self.goni.return_set_pitch()
-        curr_set_yaw = self.goni.return_set_yaw()
 
         pitch_true_change_deg = curr_true_pitch - prev_true_pitch
         yaw_true_change_deg = curr_true_yaw - prev_true_yaw
-        pitch_set_change_deg = curr_set_pitch - prev_set_pitch
-        yaw_set_change_deg = curr_set_yaw - prev_set_yaw
 
         self.dose.add(delta_dose)
 
