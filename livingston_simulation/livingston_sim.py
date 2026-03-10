@@ -27,8 +27,15 @@ def delta_c_from_pitch_yaw(
 ):
     delta_h_rad = np.deg2rad(delta_h_deg)
     delta_v_rad = np.deg2rad(delta_v_deg)    
-    phi_rad = np.deg2rad(phi_deg)    
-    delta_c_rad = delta_v_rad * np.cos(phi_rad) + delta_h_rad * np.sin(phi_rad)
+    beam_h_rad  = np.deg2rad(beam_pitch_deg)
+    beam_v_rad  = np.deg2rad(beam_yaw_deg)
+
+    phi_rad = np.deg2rad(phi_deg)
+
+    delta_h_eff_rad = delta_h_rad + beam_h_rad
+    delta_v_eff_rad = delta_v_rad + beam_v_rad
+    
+    delta_c_rad = delta_v_eff_rad * np.cos(phi_rad) + delta_h_eff_rad * np.sin(phi_rad)
     return delta_c_rad
 
 def delta_c_to_peak(delta_c_rad, E0, Ei, run_period, orientation):
