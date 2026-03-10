@@ -146,36 +146,37 @@ def main(args):
 
     # Create environment
     env = CoherentGoniometerEnv(
-        beam_energy_E0=11600.0,
-        target_edge_low=8400.0,     # MeV, for randomization
-        target_edge_high=8800.0,    # MeV, for randomization
-        orientation_index=0,
-        pitch_step_deg=2e-4,
-        yaw_step_deg=2e-4,
-        dose_per_step=0.0,
-        max_steps=500
+        beam_energy_E0=args.beam_E0,
+        target_edge_low=args.target_edge_low,     # MeV, for randomization
+        target_edge_high=args.target_edge_high,    # MeV, for randomization
+        orientation_index=args.orientation_index,
+        pitch_step_deg=args.pitch_step_deg,
+        yaw_step_deg=args.yaw_step_deg,
+        dose_per_step=args.dose_per_step,
+        max_steps=args.max_steps,
     )
     # Evaluation environment
     eval_env = CoherentGoniometerEnv(
-        beam_energy_E0=11600.0,
-        target_edge_low=8400.0,
-        target_edge_high=8800.0, 
-        orientation_index=0,
-        pitch_step_deg=2e-4,
-        yaw_step_deg=2e-4,
-        dose_per_step=0.0,
-        max_steps=500
+        beam_energy_E0=args.beam_E0,
+        target_edge_low=args.target_edge_low,
+        target_edge_high=args.target_edge_high,
+        orientation_index=args.orientation_index,
+	pitch_step_deg=args.pitch_step_deg,
+        yaw_step_deg=args.yaw_step_deg,
+        dose_per_step=args.dose_per_step,
+        max_steps=args.max_steps,
     )
 
     plot_env = CoherentGoniometerEnv(
-        beam_energy_E0=11600.0,
-        target_edge_low=8400.0,
-        target_edge_high=8800.0, 
-        orientation_index=0,
-        pitch_step_deg=2e-4,
-        yaw_step_deg=2e-4,
-        dose_per_step=0.0,
-        max_steps=500
+        beam_energy_E0=args.beam_E0,
+        target_edge_low=args.target_edge_low,
+        target_edge_high=args.target_edge_high,
+        orientation_index=args.orientation_index,
+	pitch_step_deg=args.pitch_step_deg,
+        yaw_step_deg=args.yaw_step_deg,
+        dose_per_step=args.dose_per_step,
+        max_steps=args.max_steps,
+
     )
 
     # Sanity check
@@ -186,10 +187,10 @@ def main(args):
     model = PPO(
         policy="MlpPolicy",
         env=env,
-        learning_rate=linear_schedule(1e-4),
-        n_steps=2048,
-        batch_size=64,
-        gamma=0.99,
+        learning_rate=linear_schedule(args.learning_rate),
+        n_steps=args.n_steps,
+        batch_size=args.batch_size,
+        gamma=args.gamma,
         verbose=1,
         tensorboard_log="./ppo_gonio_tensorboard/",
     )
@@ -228,7 +229,22 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train PPO agent for Coherent Goniometer Environment")
     parser.add_argument('-n', '--name', type=str, default='PPO_goni', help='log name for training session')
+    parser.add_argument("--beam_E0", type=float, default=11600.0)
+    parser.add_argument("--target_edge_low", type=float, default=8400.0)
+    parser.add_argument("--target_edge_high", type=float, default=8800.0)
+    parser.add_argument("--orientation_index", type=int, default=0)
+    parser.add_argument("--run_period", type=str, default="2020")
+    parser.add_argument("--pitch_step_deg", type=float, default=2e-4)
+    parser.add_argument("--yaw_step_deg", type=float, default=2e-4)
+    parser.add_argument("--dose_per_step", type=float, default=0.0)
+    parser.add_argument("--max_steps", type=int, default=500)
 
+    parser.add_argument("--total_timesteps", type=int, default=300_000)
+    parser.add_argument("--learning_rate", type=float, default=1e-4)  # matches your linear_schedule(1e-4)
+    parser.add_argument("--n_steps", type=int, default=2048)
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--gamma", type=float, default=0.99)
+    
     args = parser.parse_args()
     
     main(args)
