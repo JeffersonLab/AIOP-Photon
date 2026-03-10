@@ -32,10 +32,9 @@ class GoniometerEnv:
     Contains:
       - backlash + wobble models
       - correct Cobrems geometry
-      - spatial dose map (FULLY FUNCTIONAL)
+      - spatial dose map
       - radiation-damage model
 
-    Works with RL, scanning scripts, and plotting utilities.
     """
 
     # def __init__(self, cfg: EnvConfig | None = None, cfg_file: str | None = None):
@@ -215,10 +214,8 @@ class GoniometerEnv:
 
         # Evaluate physics → peak energy
         result = compute_peak_energy(params)
-        peak_energy = result[12]
-
         # Deposit new dose only during irradiation phase
         if self.dose_per_step != 0.0:
             self.deposit_dose_gaussian(x0, y0, sigma=0.3)
 
-        return peak_energy
+        return result
