@@ -1,34 +1,12 @@
 import numpy as np
 
-# Canonical orientation labels and helpers shared across notebooks and the RL env
 ORIENTATION_TO_PHI = {
-    "AMORPHOUS":   0.0,
     "PARA 0/90":    0.0,
     "PERP 0/90":   90.0,
-    "PARA 45/135": 135.0,
-    "PERP 45/135": 45.0,
-}
-
-# Accept legacy labels used in notebooks (e.g., "0/90 PERP") and map to the canonical ones above
-ORIENTATION_ALIASES = {
-    "AMORPHOUS": "AMORPHOUS",
-    "0/90 PERP": "PERP 0/90",
-    "0/90 PARA": "PARA 0/90",
-    "45/135 PERP": "PERP 45/135",
-    "45/135 PARA": "PARA 45/135",
-}
-
-# Notebook orientation_mode (1-4) → canonical label
-ORIENTATION_MODE_MAP = {
-    1: "PERP 0/90",
-    2: "PARA 0/90",
-    3: "PERP 45/135",
-    4: "PARA 45/135",
-}
-
-# Run-period specific sign overrides (only cases we have evidence for)
-SIGN_OVERRIDES = {
-    ("2023", "PERP 0/90"): -1,  # Spring 2023 PERP 0/90 uses opposite energy sign
+    # "PARA 45/135": 135.0,
+    # "PERP 45/135": 45.0,
+    "PARA 45/135": 45.0,
+    "PERP 45/135": 135.0,
 }
 
 
@@ -40,70 +18,12 @@ def get_sign(value):
     else:
         return 0
 
-
-def normalize_orientation(label_or_mode):
-    """Return canonical orientation label for a variety of inputs."""
-    if isinstance(label_or_mode, int):
-        if label_or_mode not in ORIENTATION_MODE_MAP:
-            raise ValueError(f"Unsupported orientation mode: {label_or_mode}")
-        return ORIENTATION_MODE_MAP[label_or_mode]
-    if label_or_mode in ORIENTATION_TO_PHI:
-        return label_or_mode
-    if label_or_mode in ORIENTATION_ALIASES:
-        return ORIENTATION_ALIASES[label_or_mode]
-    raise ValueError(f"Unsupported orientation label: {label_or_mode}")
-
-
-def infer_nudge_direction_from_sizes(orientation_label, pitch_size, yaw_size):
-    """Infer the base nudge direction (before run-period overrides) from pitch/yaw sizes."""
-    orientation_label = normalize_orientation(orientation_label)
-    if orientation_label == "PERP 0/90":
-        dir_val = -get_sign(pitch_size)
-    elif orientation_label == "PARA 0/90":
-        dir_val = -get_sign(yaw_size)
-    elif orientation_label == "PERP 45/135":
-        dir_val = -get_sign(yaw_size) if abs(yaw_size) >= abs(pitch_size) else get_sign(pitch_size)
-    elif orientation_label == "PARA 45/135":
-        dir_val = -get_sign(yaw_size) if abs(yaw_size) >= abs(pitch_size) else -get_sign(pitch_size)
-    else:
-        raise ValueError(f"Unsupported orientation label: {orientation_label}")
-    return dir_val or -1
-
-
-def direction_to_pitch_yaw(run_period, orientation_label, nudge_dir, base_step):
-    """Map an abstract nudge direction to signed pitch/yaw steps and an energy sign."""
-    orientation_label = normalize_orientation(orientation_label)
-    energy_override = SIGN_OVERRIDES.get((run_period, orientation_label), 1)
-
-    if orientation_label == "AMORPHOUS":
-        pitch_delta = 0.0
-        yaw_delta = 0.0
-        energy_dir = 0.0
-        return pitch_delta, yaw_delta, energy_dir
-    if orientation_label == "PERP 0/90":
-        pitch_delta = -nudge_dir * base_step
-        yaw_delta = 0.0
-    elif orientation_label == "PARA 0/90":
-        pitch_delta = 0.0
-        yaw_delta = -nudge_dir * base_step
-    elif orientation_label == "PERP 45/135":
-        pitch_delta = nudge_dir * base_step / (2 ** 0.5)
-        yaw_delta = -nudge_dir * base_step / (2 ** 0.5)
-    elif orientation_label == "PARA 45/135":
-        pitch_delta = -nudge_dir * base_step / (2 ** 0.5)
-        yaw_delta = -nudge_dir * base_step / (2 ** 0.5)
-    else:
-        raise ValueError(f"Unsupported orientation label: {orientation_label}")
-
-    energy_dir = nudge_dir * energy_override
-    return pitch_delta, yaw_delta, energy_dir
-
 def delta_c_from_pitch_yaw(
     delta_h_deg, #pitch
     delta_v_deg, #yaw
     phi_deg,
     beam_pitch_deg=0.0,
-    beam_yaw_deg=0.0
+    beam_yaw_deg=0.0,
 ):
     delta_h_rad = np.deg2rad(delta_h_deg)
     delta_v_rad = np.deg2rad(delta_v_deg)    
@@ -111,11 +31,27 @@ def delta_c_from_pitch_yaw(
     delta_c_rad = delta_v_rad * np.cos(phi_rad) + delta_h_rad * np.sin(phi_rad)
     return delta_c_rad
 
-def delta_c_to_peak(delta_c_rad, E0, Ei):
+def delta_c_to_peak(delta_c_rad, E0, Ei, run_period, orientation):
+    
     g = 2.
     k = 26.5601
     
-    deltaE = (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
+    # deltaE = (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
+    deltaE = -1 * (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
+    
+    # deefault setting with the deltaE formula:
+    # 0/90   PARA: yaw - => deltaE +
+    # 45/135 PARA: yaw - pitch - => deltaE +
+    # 0/90   PERP: pitch + => deltaE +
+    # 45/135 PERP: yaw + pitch - => deltaE +
+
+    if run_period == "2023" and orientation == "PERP 0/90":
+        # in 2023 PERP 0/90: pitch - => deltaE +
+        deltaE *= -1
+    elif run_period == "2025" and orientation == "PERP 45/135":
+        # in 2025 PERP 45/135: yaw - pitch + => deltaE +
+        deltaE *= -1
+
 
     return deltaE
 
@@ -127,7 +63,7 @@ class Goniometer:
     def __init__(self, run_period):
 
         # possible diamond orientations [should I include amorphous?] 
-        self.orientations = ["AMORPHOUS","PERP 0/90","PARA 0/90","PERP 45/135","PARA 45/135"]
+        self.orientations = ["PERP 0/90","PARA 0/90","PERP 45/135","PARA 45/135"]
 
         self.current_orientation = "Undefined"
         self.current_set_yaw = 0
@@ -352,24 +288,28 @@ class DiamondDose:
 
 
 class CoherentPeakTracker:
-    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei):
+    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei, run_period, orientation, accumulated_dose):
         self.base_peak_position = base_peak_position
         self.dose_slope = dose_slope
         self.E0 = beam_energy_E0
         self.Ei = coherent_edge_Ei
+        self.run_period = run_period
+        self.orientation = orientation
 
-        self.current_peak_position = float(base_peak_position)
+        initial_dose_shift = self.dose_slope * accumulated_dose
+        self.current_peak_position = float(base_peak_position) + initial_dose_shift
 
     def reset(self):
         self.current_peak_position = float(self.base_peak_position)
 
-    def update(self, delta_c_rad, dose):
+    def update(self, delta_c_rad, delta_dose):
 
-        deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.Ei)
+        # deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.Ei)
+        deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.current_peak_position, self.run_period, self.orientation)
 
-        dose_shift = self.dose_slope * dose
+        delta_dose_shift = self.dose_slope * delta_dose
 
-        self.current_peak_position = self.base_peak_position + dose_shift + (self.current_peak_position - self.base_peak_position) + deltaE_step
+        self.current_peak_position = self.base_peak_position + delta_dose_shift + (self.current_peak_position - self.base_peak_position) + deltaE_step
 
         return self.current_peak_position
 
@@ -386,107 +326,29 @@ class CoherentBremsstrahlungSimulator:
         beam_energy_E0,
         coherent_edge_Ei,
         orientation,
-        run_period="2020",
-        use_streamlined_energy=False,
-        nudge_energy_size_pitch=10.0,
-        nudge_energy_size_yaw=10.0,
-        latency_setpoint_to_readback=8,
+        run_period,
+        accumulated_dose=0.0,
     ):
         self.run_period = run_period
         self.beam_state = BeamState()
         self.orientation = normalize_orientation(orientation)
 
-        if self.orientation == "AMORPHOUS":
-            base_peak_position = 0.0
-            coherent_edge_Ei = 0.0
-
         self.goni = Goniometer(run_period=run_period)
-        self.goni.change_orientation(self.orientation)
+        self.goni.change_orientation(orientation)
 
-        self.phi_deg = ORIENTATION_TO_PHI[self.orientation]
+        self.phi_deg = ORIENTATION_TO_PHI[orientation]
 
-        self.dose = DiamondDose()
-        self.peak = CoherentPeakTracker(
+        self.dose = DiamondDose(dose=accumulated_dose)
+        self.peak_tracker = CoherentPeakTracker(
             base_peak_position=base_peak_position,
             dose_slope=dose_slope,
             beam_energy_E0=beam_energy_E0,
-            coherent_edge_Ei=coherent_edge_Ei
+            coherent_edge_Ei=coherent_edge_Ei,
+            run_period=run_period,
+            orientation=orientation,
+            accumulated_dose=accumulated_dose
         )
 
-        # When enabled, mimic the streamlined notebook's heuristic energy update
-        self.use_streamlined_energy = use_streamlined_energy
-        self.nudge_energy_size_pitch = nudge_energy_size_pitch
-        self.nudge_energy_size_yaw = nudge_energy_size_yaw
-        self.current_peak_streamlined = float(base_peak_position)
-
-        # Latency (in steps/seconds) before a commanded motion affects the peak
-        self.latency_steps = max(0, int(round(latency_setpoint_to_readback)))
-        self._pending = []  # list of (due_step, pitch_true, yaw_true, pitch_set, yaw_set)
-        self._t = 0
-
-
-
-    def _streamlined_energy_step(self, pitch_set_change_deg, yaw_set_change_deg):
-        """Heuristic energy update used by the streamlined notebook."""
-        energy_change = 0.0
-
-        if self.orientation == "AMORPHOUS":
-            self.current_peak_streamlined = 0.0
-            return 0.0, 0.0
-
-        def infer_nudge_dir():
-            """Reconstruct nudge_direction sign from setpoint deltas and orientation mapping used in the streamlined notebook."""
-            # Orientation labels match ORIENTATION_TO_PHI keys
-            label = self.orientation
-            if label in ("PERP 0/90", "PARA 0/90"):
-                # Notebook orientation_mode 1/2: sign is opposite of the setpoint change (pitch for PERP, yaw for PARA)
-                if label == "PERP 0/90" and abs(pitch_set_change_deg) > 0:
-                    return -get_sign(pitch_set_change_deg)
-                if label == "PARA 0/90" and abs(yaw_set_change_deg) > 0:
-                    return -get_sign(yaw_set_change_deg)
-            if label == "PERP 45/135":
-                # Notebook orientation_mode 3: pitch increases with +dir, yaw decreases with +dir
-                if abs(pitch_set_change_deg) >= abs(yaw_set_change_deg):
-                    return get_sign(pitch_set_change_deg)
-                return -get_sign(yaw_set_change_deg)
-            if label == "PARA 45/135":
-                # Notebook orientation_mode 4: both pitch and yaw decrease with +dir
-                if abs(pitch_set_change_deg) >= abs(yaw_set_change_deg):
-                    return -get_sign(pitch_set_change_deg)
-                return -get_sign(yaw_set_change_deg)
-            # Fallback to dominant component sign
-            dominant = pitch_set_change_deg if abs(pitch_set_change_deg) >= abs(yaw_set_change_deg) else yaw_set_change_deg
-            return get_sign(dominant)
-
-        if abs(pitch_set_change_deg) > 0.0 or abs(yaw_set_change_deg) > 0.0:
-            nudge_dir = infer_nudge_dir() * SIGN_OVERRIDES.get((self.run_period, self.orientation), 1)
-            energy_change = (
-                (pitch_set_change_deg ** 2 * self.nudge_energy_size_pitch ** 2 +
-                 yaw_set_change_deg ** 2 * self.nudge_energy_size_yaw ** 2) ** 0.5
-            ) / 0.001
-            energy_change *= nudge_dir
-
-        self.current_peak_streamlined += energy_change
-        return energy_change, self.current_peak_streamlined
-
-
-    def _pop_due_moves(self):
-        """Return accumulated deltas whose due_step has arrived."""
-        due_true_pitch = 0.0
-        due_true_yaw = 0.0
-        due_set_pitch = 0.0
-        due_set_yaw = 0.0
-        remaining = []
-        for due_step, tp, ty, sp, sy in self._pending:
-            if due_step <= self._t:
-                due_true_pitch += tp
-                due_true_yaw += ty
-                due_set_pitch += sp
-                due_set_yaw += sy
-            else:
-                remaining.append((due_step, tp, ty, sp, sy))
-        self._pending = remaining
-        return due_true_pitch, due_true_yaw, due_set_pitch, due_set_yaw
 
 
     def step(self, dpitch_deg, dyaw_deg, delta_dose):
@@ -516,36 +378,16 @@ class CoherentBremsstrahlungSimulator:
 
         self.dose.add(delta_dose)
 
-        # enqueue motion; it will affect peak after latency
-        if self.latency_steps == 0:
-            due_true_pitch = pitch_true_change_deg
-            due_true_yaw = yaw_true_change_deg
-            due_set_pitch = pitch_set_change_deg
-            due_set_yaw = yaw_set_change_deg
-        else:
-            due_step = self._t + self.latency_steps
-            self._pending.append((due_step, pitch_true_change_deg, yaw_true_change_deg, pitch_set_change_deg, yaw_set_change_deg))
-            due_true_pitch, due_true_yaw, due_set_pitch, due_set_yaw = self._pop_due_moves()
+        delta_c = delta_c_from_pitch_yaw(
+            delta_h_deg=pitch_true_change_deg,
+            delta_v_deg=yaw_true_change_deg,
+            phi_deg=self.phi_deg,
+            beam_pitch_deg=self.beam_state.beam_pitch_deg,
+            beam_yaw_deg=self.beam_state.beam_yaw_deg
+        )
 
-        if self.orientation == "AMORPHOUS":
-            delta_c = 0.0
-            peak = 0.0
-        elif self.use_streamlined_energy:
-            # Match streamlined notebook: use set-point deltas, no phi projection, no dose term
-            delta_c = 0.0
-            _, peak = self._streamlined_energy_step(due_set_pitch, due_set_yaw)
-        else:
-            delta_c = delta_c_from_pitch_yaw(
-                delta_h_deg=due_true_pitch,
-                delta_v_deg=due_true_yaw,
-                phi_deg=self.phi_deg,
-                beam_pitch_deg=self.beam_state.beam_pitch_deg,
-                beam_yaw_deg=self.beam_state.beam_yaw_deg
-            )
+        peak = self.peak_tracker.update(delta_c_rad=delta_c, delta_dose=delta_dose)
 
-            peak = self.peak.update(delta_c_rad=delta_c, dose=self.dose.dose)
-
-        self._t += 1
         return delta_c, peak
     
 

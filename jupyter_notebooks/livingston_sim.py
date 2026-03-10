@@ -3,8 +3,10 @@ import numpy as np
 ORIENTATION_TO_PHI = {
     "PARA 0/90":    0.0,
     "PERP 0/90":   90.0,
-    "PARA 45/135": 135.0,
-    "PERP 45/135": 45.0,
+    # "PARA 45/135": 135.0,
+    # "PERP 45/135": 45.0,
+    "PARA 45/135": 45.0,
+    "PERP 45/135": 135.0,
 }
 
 
@@ -21,7 +23,7 @@ def delta_c_from_pitch_yaw(
     delta_v_deg, #yaw
     phi_deg,
     beam_pitch_deg=0.0,
-    beam_yaw_deg=0.0
+    beam_yaw_deg=0.0,
 ):
     delta_h_rad = np.deg2rad(delta_h_deg)
     delta_v_rad = np.deg2rad(delta_v_deg)    
@@ -29,11 +31,27 @@ def delta_c_from_pitch_yaw(
     delta_c_rad = delta_v_rad * np.cos(phi_rad) + delta_h_rad * np.sin(phi_rad)
     return delta_c_rad
 
-def delta_c_to_peak(delta_c_rad, E0, Ei):
+def delta_c_to_peak(delta_c_rad, E0, Ei, run_period, orientation):
+    
     g = 2.
     k = 26.5601
     
-    deltaE = (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
+    # deltaE = (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
+    deltaE = -1 * (delta_c_rad * (E0 - Ei)**2 ) / (k/g + delta_c_rad * (E0 - Ei) )
+    
+    # deefault setting with the deltaE formula:
+    # 0/90   PARA: yaw - => deltaE +
+    # 45/135 PARA: yaw - pitch - => deltaE +
+    # 0/90   PERP: pitch + => deltaE +
+    # 45/135 PERP: yaw + pitch - => deltaE +
+
+    if run_period == "2023" and orientation == "PERP 0/90":
+        # in 2023 PERP 0/90: pitch - => deltaE +
+        deltaE *= -1
+    elif run_period == "2025" and orientation == "PERP 45/135":
+        # in 2025 PERP 45/135: yaw - pitch + => deltaE +
+        deltaE *= -1
+
 
     return deltaE
 
@@ -270,11 +288,13 @@ class DiamondDose:
 
 
 class CoherentPeakTracker:
-    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei):
+    def __init__(self, base_peak_position, dose_slope, beam_energy_E0, coherent_edge_Ei, run_period, orientation):
         self.base_peak_position = base_peak_position
         self.dose_slope = dose_slope
         self.E0 = beam_energy_E0
         self.Ei = coherent_edge_Ei
+        self.run_period = run_period
+        self.orientation = orientation
 
         self.current_peak_position = float(base_peak_position)
 
@@ -283,7 +303,8 @@ class CoherentPeakTracker:
 
     def update(self, delta_c_rad, dose):
 
-        deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.Ei)
+        # deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.Ei)
+        deltaE_step = delta_c_to_peak(delta_c_rad, self.E0, self.current_peak_position, self.run_period, self.orientation)
 
         dose_shift = self.dose_slope * dose
 
@@ -304,7 +325,7 @@ class CoherentBremsstrahlungSimulator:
         beam_energy_E0,
         coherent_edge_Ei,
         orientation,
-        run_period="2020"
+        run_period,
     ):
         self.beam_state = BeamState()
         self.orientation = orientation
@@ -319,7 +340,9 @@ class CoherentBremsstrahlungSimulator:
             base_peak_position=base_peak_position,
             dose_slope=dose_slope,
             beam_energy_E0=beam_energy_E0,
-            coherent_edge_Ei=coherent_edge_Ei
+            coherent_edge_Ei=coherent_edge_Ei,
+            run_period=run_period,
+            orientation=orientation
         )
 
 
