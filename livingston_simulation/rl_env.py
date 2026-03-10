@@ -302,11 +302,11 @@ class CoherentGoniometerEnv(gym.Env):
 
 
         # Termination
-        # if relative_error < 0.001:
-        #     terminated = True
-        #     reward += 200
-        # else:
-        #     terminated = False
+        if relative_error < 0.001:
+            terminated = True
+            reward += 200
+        else:
+            terminated = False
 
 
         if self._step_count >= self.max_steps:
