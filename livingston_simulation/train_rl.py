@@ -154,6 +154,7 @@ def main(args):
         yaw_step_deg=args.yaw_step_deg,
         dose_per_step=args.dose_per_step,
         max_steps=args.max_steps,
+        random_beam_angle=args.ramdom_beam_angle,
     )
     # Evaluation environment
     eval_env = CoherentGoniometerEnv(
@@ -161,10 +162,11 @@ def main(args):
         target_edge_low=args.target_edge_low,
         target_edge_high=args.target_edge_high,
         orientation_index=args.orientation_index,
-	pitch_step_deg=args.pitch_step_deg,
+	    pitch_step_deg=args.pitch_step_deg,
         yaw_step_deg=args.yaw_step_deg,
         dose_per_step=args.dose_per_step,
         max_steps=args.max_steps,
+        random_beam_angle=args.ramdom_beam_angle,
     )
 
     plot_env = CoherentGoniometerEnv(
@@ -172,12 +174,21 @@ def main(args):
         target_edge_low=args.target_edge_low,
         target_edge_high=args.target_edge_high,
         orientation_index=args.orientation_index,
-	pitch_step_deg=args.pitch_step_deg,
+	    pitch_step_deg=args.pitch_step_deg,
         yaw_step_deg=args.yaw_step_deg,
         dose_per_step=args.dose_per_step,
         max_steps=args.max_steps,
-
+        random_beam_angle=args.ramdom_beam_angle,
     )
+
+        # beam_energy_E0=11600.0,
+        # target_edge_low=8400.0,     # MeV, for randomization
+        # target_edge_high=8800.0,    # MeV, for randomization
+        # orientation_index=orientation_index,
+        # pitch_step_deg=2e-4,
+        # yaw_step_deg=2e-4,
+        # dose_per_step=0.5,
+        # max_steps=500
 
     # Sanity check
     check_env(env, warn=True)
@@ -232,12 +243,13 @@ if __name__ == "__main__":
     parser.add_argument("--beam_E0", type=float, default=11600.0)
     parser.add_argument("--target_edge_low", type=float, default=8400.0)
     parser.add_argument("--target_edge_high", type=float, default=8800.0)
-    parser.add_argument("--orientation_index", type=int, default=0)
+    parser.add_argument("--orientation_index", type=int, default=0, help='orientation index for the environment. 0 for PERP 0/90, 1 for PARA 0/90, 2 for PERP 45/135, 3 for PARA 45/135')
     parser.add_argument("--run_period", type=str, default="2020")
     parser.add_argument("--pitch_step_deg", type=float, default=2e-4)
     parser.add_argument("--yaw_step_deg", type=float, default=2e-4)
     parser.add_argument("--dose_per_step", type=float, default=0.0)
     parser.add_argument("--max_steps", type=int, default=500)
+    parser.add_argument("--ramdom_beam_angle", action='store_true', default=True)
 
     parser.add_argument("--total_timesteps", type=int, default=300_000)
     parser.add_argument("--learning_rate", type=float, default=1e-4)  # matches your linear_schedule(1e-4)

@@ -33,6 +33,7 @@ class CoherentGoniometerEnv(gym.Env):
         yaw_step_deg=2e-4,
         dose_per_step=0.1,
         max_steps=500,
+        random_beam_angle=True,
 
         # use_streamlined_peaks=True,
         # nudge_energy_size_pitch=10.0,
@@ -93,6 +94,7 @@ class CoherentGoniometerEnv(gym.Env):
             coherent_edge_Ei=self.coherent_edge_Ei,
             orientation=self.orientation_label,
             run_period=self.run_period,
+            random_beam_angle=random_beam_angle,
 
             # use_streamlined_energy=self.use_streamlined_peaks,
             # nudge_energy_size_pitch=self.nudge_energy_size_pitch,
@@ -209,6 +211,7 @@ class CoherentGoniometerEnv(gym.Env):
             orientation=self.orientation_label,
             run_period=self.run_period,
             accumulated_dose=accumulated_dose,
+            random_beam_angle=self.sim.beam_state.random_angle,
 
             # use_streamlined_energy=self.use_streamlined_peaks,
             # nudge_energy_size_pitch=self.nudge_energy_size_pitch,
@@ -295,7 +298,7 @@ class CoherentGoniometerEnv(gym.Env):
         
         # else:        
         
-        action_penalty_ratio = 0.35
+        action_penalty_ratio = 0.5
         action_penalty = (pitch_dir**2 + yaw_dir**2)**0.5   # small penalty for taking an action
 
         reward -= action_penalty_ratio * action_penalty  # always penalize actions to encourage efficiency

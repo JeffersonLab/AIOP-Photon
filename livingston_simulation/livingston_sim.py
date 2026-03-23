@@ -274,10 +274,21 @@ class Goniometer:
         return self.current_set_roll
 
 class BeamState:
-    def __init__(self, beam_pitch_deg=0.0, beam_yaw_deg=0.0):
-        self.beam_pitch_deg = beam_pitch_deg
-        self.beam_yaw_deg = beam_yaw_deg
+    def __init__(self, beam_pitch_deg=0.0, beam_yaw_deg=0.0, random_angle=False):
+        
+        self.random_angle = random_angle
 
+        if random_angle:
+            self.update_random()
+        else:
+            self.beam_pitch_deg = beam_pitch_deg
+            self.beam_yaw_deg = beam_yaw_deg
+
+    def update_random(self):
+        if self.random_angle:
+            # random angles [-0.1,0.1] millidegrees corresponding to [-1, 1] MeV peak shift
+            self.beam_pitch_deg = np.random.uniform(-0.0001, 0.0001)
+            self.beam_yaw_deg = np.random.uniform(-0.0001, 0.0001)
 
 class DiamondDose:
     """
@@ -335,8 +346,9 @@ class CoherentBremsstrahlungSimulator:
         orientation,
         run_period,
         accumulated_dose=0.0,
+        random_beam_angle=False,
     ):
-        self.beam_state = BeamState()
+        self.beam_state = BeamState(random_angle=random_beam_angle)
         self.orientation = orientation
 
         self.goni = Goniometer(run_period=run_period)
@@ -379,6 +391,8 @@ class CoherentBremsstrahlungSimulator:
 
         self.dose.add(delta_dose)
 
+        self.beam_state.update_random()
+        
         delta_c = delta_c_from_pitch_yaw(
             delta_h_deg=pitch_true_change_deg,
             delta_v_deg=yaw_true_change_deg,
