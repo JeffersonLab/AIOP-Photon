@@ -143,6 +143,9 @@ def is_diamond_radiator_name(name: str) -> bool:
 
     return DIAMOND_NAME_RE.search(text) is not None
 
+def beam_current_ok(beam_current: float, min_beam_current: float) -> bool:
+    return beam_current >= min_beam_current
+
 # ----------------------------------------------------------------------
 # MYA helpers
 # ----------------------------------------------------------------------
@@ -591,6 +594,7 @@ def run_loop(
     replay_start: Optional[datetime],
     replay_end: Optional[datetime],
     replay_step_s: float,
+    min_beam_current: float,
 ) -> None:
     model = PPO.load(model_path)
     history = ActionHistory()
@@ -611,7 +615,8 @@ def run_loop(
     logging.info("Target PV: %s", MYA_PVS["nominal_edge"])
     logging.info("Measured edge PV: %s", MYA_PVS["measured_edge"])
     logging.info("Radiator PV: %s", MYA_PVS["radiator_name"])
-
+    logging.info("Minimum beam current for AI action: %.3f", min_beam_current)
+    
     if dry_run:
         logging.info("Dry-run mode enabled: MYA reads are live/replayed, EPICS writes are suppressed.")
     if disable_dose_state:
@@ -639,8 +644,10 @@ def run_loop(
             state = read_live_state(when=query_time)
 
             diamond_in_beam = is_diamond_radiator_name(state.radiator_name)
-
-            if diamond_in_beam:
+            enough_beam_current = state.beam_current >= min_beam_current
+            ai_enabled = diamond_in_beam and enough_beam_current
+            
+            if ai_enabled:
                 obs = build_observation(
                     state,
                     history,
@@ -684,7 +691,7 @@ def run_loop(
                 prefix = "replay_time={0} ".format(query_time)
 
             logging.info(
-                "%sradiator=%s diamond_in_beam=%s target=%.3f peak=%.3f dose=%.3f beam current=%.3f rel_err=%.6g ori=%s "
+                "%sradiator=%s diamond_in_beam=%s target=%.3f peak=%.3f dose=%.3f beam current=%.3f enough_beam_current=%s rel_err=%.6g ori=%s "
                 "req_pitch=%+.7f deg req_yaw=%+.7f deg delta_c=%+.9e status=%d",
                 prefix,
                 state.radiator_name,
@@ -693,6 +700,7 @@ def run_loop(
                 state.peak_energy,
                 0.0 if disable_dose_state else state.dose,
                 state.beam_current,
+                enough_beam_current,                
                 relative_error,
                 ORIENTATIONS[state.orientation_index],
                 req["delta_pitch_deg"],
@@ -762,6 +770,7 @@ def parse_args() -> argparse.Namespace:
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
+    parser.add_argument("--min-beam-current", type=float, default=100.0, help="Minimum beam current required before the AI is allowed to act, in nA",)
     return parser.parse_args()
 
 
@@ -796,6 +805,7 @@ def main() -> int:
         replay_start=replay_start,
         replay_end=replay_end,
         replay_step_s=args.replay_step_s,
+        min_beam_current=args.min_beam_current,        
     )
     return 0
 
