@@ -4,9 +4,11 @@ from __future__ import annotations
 import argparse
 import logging
 import re
+import os
 import signal
 import sys
 import time
+import csv
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -57,6 +59,11 @@ MYA_PVS = {
     "beam_current": "IBCAD00CRCUR6",
     "plane": "HD:CBREM:PLANE",           # PARA = 1, PERP = 2
     "phipol": "HD:CBREM:PHIPOL",         # 0 or 45
+    "phi022": "HD:CBREM:PHI022",
+    "pitch_setpoint": "HD:GONI:X",
+    "pitch_readback": "HD:GONI:X.RBV",
+    "yaw_setpoint": "HD:GONI:Y",
+    "yaw_readback": "HD:GONI:Y.RBV",    
     "radiator_name": "HD:GONI:RADIATOR_NAME",
 }
 
@@ -84,6 +91,10 @@ class LiveState:
     beam_current: float
     orientation_index: int
     radiator_name: str
+    pitch_setpoint: float = 0.0
+    pitch_readback: float = 0.0
+    yaw_setpoint: float = 0.0
+    yaw_readback: float = 0.0    
     beam_tilt_pitch_deg: float = 0.0
     beam_tilt_yaw_deg: float = 0.0
 
@@ -338,9 +349,14 @@ def orientation_index_from_plane_phipol(plane: float, phipol: float) -> int:
     if plane_i not in (1, 2):
         raise ValueError("Unexpected HD:CBREM:PLANE value: {0}".format(plane))
 
-    if phi_i not in (0, 45, 135):
+    if phi_i not in (0, 45, 90, 135, 180):
         raise ValueError("Unexpected HD:CBREM:PHIPOL value: {0}".format(phipol))
 
+    if phi_i == 180:
+        phi_i = 0
+    elif phi_i == 90:
+        phi_i = 0
+    
     if plane_i == 2 and phi_i == 0:
         return 0
     if plane_i == 1 and phi_i == 0:
@@ -353,17 +369,47 @@ def orientation_index_from_plane_phipol(plane: float, phipol: float) -> int:
     raise RuntimeError("Unhandled plane/phipol combination")
 
 
+def calculate_phipol_from_plane_phi022(plane: float, phi022: float) -> float:
+    """
+    Reconstruct PHIPOL for older run periods where HD:CBREM:PHIPOL
+    was not archived.
+
+      If PLANE == 1: PHIPOL = 180 - PHI022
+      If PLANE == 2: PHIPOL = 90  - PHI022
+    """
+    plane_i = int(round(plane))
+
+    if plane_i == 1:
+        return 180.0 - phi022
+    if plane_i == 2:
+        return 90.0 - phi022
+
+    raise ValueError("Unexpected HD:CBREM:PLANE value: {0}".format(plane))
+
+
 def read_live_state(*, when: Optional[datetime] = None) -> LiveState:
     beam_energy_E0, beam_energy_time, beam_energy_age_h = read_mya_point(MYA_PVS["beam_energy_E0"], when=when)
     coherent_edge_Ei, target_time, target_age_h = read_mya_point(MYA_PVS["nominal_edge"], when=when)
     peak_energy, peak_time, peak_age_h = read_mya_point(MYA_PVS["measured_edge"], when=when)
     beam_current, current_time, current_age_h = read_mya_point(MYA_PVS["beam_current"], when=when)
     radiator_name, radiator_time, radiator_age_h = read_mya_string_point(MYA_PVS["radiator_name"], when=when)
-
+    pitch_setpoint, pitch_sp_time, pitch_sp_age_h = read_mya_point(MYA_PVS["pitch_setpoint"], when=when)
+    pitch_readback, pitch_rb_time, pitch_rb_age_h = read_mya_point(MYA_PVS["pitch_readback"], when=when)
+    yaw_setpoint, yaw_sp_time, yaw_sp_age_h = read_mya_point(MYA_PVS["yaw_setpoint"], when=when)
+    yaw_readback, yaw_rb_time, yaw_rb_age_h = read_mya_point(MYA_PVS["yaw_readback"], when=when)
+    
     # Only require PLANE/PHIPOL to be valid when a diamond is actually in beam.
     if is_diamond_radiator_name(radiator_name):
         plane, plane_time, plane_age_h = read_mya_point(MYA_PVS["plane"], when=when)
-        phipol, phipol_time, phipol_age_h = read_mya_point(MYA_PVS["phipol"], when=when)
+
+        try:
+            phipol, phipol_time, phipol_age_h = read_mya_point(MYA_PVS["phipol"], when=when)
+        except RuntimeError:
+            phi022, phi022_time, phi022_age_h = read_mya_point(MYA_PVS["phi022"], when=when)
+            phipol = calculate_phipol_from_plane_phi022(plane, phi022)
+            phipol_time = phi022_time
+            phipol_age_h = phi022_age_h
+
         orientation_index = orientation_index_from_plane_phipol(plane, phipol)
     else:
         plane = 0.0
@@ -384,6 +430,10 @@ def read_live_state(*, when: Optional[datetime] = None) -> LiveState:
         radiator_age_h,
         plane_age_h,
         phipol_age_h,
+        pitch_sp_age_h,
+        pitch_rb_age_h,
+        yaw_sp_age_h,
+        yaw_rb_age_h,        
     )
 
     return LiveState(
@@ -394,6 +444,10 @@ def read_live_state(*, when: Optional[datetime] = None) -> LiveState:
         beam_current=beam_current,
         orientation_index=orientation_index,
         radiator_name=radiator_name,
+        pitch_setpoint=pitch_setpoint,
+        pitch_readback=pitch_readback,
+        yaw_setpoint=yaw_setpoint,
+        yaw_readback=yaw_readback,        
         beam_tilt_pitch_deg=0.0,
         beam_tilt_yaw_deg=0.0,
     )
@@ -601,6 +655,42 @@ def run_loop(
     heartbeat = 0
     stop_requested = False
 
+    log_dir = "log"
+    os.makedirs(log_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_log_path = os.path.join(
+        log_dir,
+        f"goni_rl_backend_{timestamp}.csv"
+    )
+    
+    csv_log_file = open(csv_log_path, "a", newline="")
+    csv_writer = csv.writer(csv_log_file)
+    
+    csv_writer.writerow([
+        "timestamp",
+        "radiator",
+        "diamond_in_beam",
+        "target",
+        "peak",
+        "dose",
+        "beam_current",
+        "enough_beam_current",
+        "relative_error",
+        "orientation",
+        
+        "pitch_setpoint",
+        "pitch_readback",
+        "yaw_setpoint",
+        "yaw_readback",
+        
+        "req_pitch_deg",
+        "req_yaw_deg",
+        "delta_c_rad",
+        "status",
+    ])
+    csv_log_file.flush()
+    
     replay_mode = replay_start is not None
     replay_time = replay_start
 
@@ -709,6 +799,38 @@ def run_loop(
                 status_code,
             )
 
+            csv_writer.writerow([
+                (query_time or datetime.now()).isoformat(),
+
+                state.radiator_name,
+                diamond_in_beam,
+                
+                state.coherent_edge_Ei,
+                state.peak_energy,
+                
+                0.0 if disable_dose_state else state.dose,
+                
+                state.beam_current,
+                enough_beam_current,
+                
+                relative_error,
+                
+                ORIENTATIONS[state.orientation_index],
+                
+                state.pitch_setpoint,
+                state.pitch_readback,
+                state.yaw_setpoint,
+                state.yaw_readback,
+                
+                req["delta_pitch_deg"],
+                req["delta_yaw_deg"],
+                req["delta_c_rad"],
+                
+                status_code,
+            ])
+
+            csv_log_file.flush()
+            
             if replay_mode:
                 replay_time = replay_time + timedelta(seconds=replay_step_s)
                 if period_s > 0:
@@ -789,9 +911,13 @@ def main() -> int:
     if args.replay_step_s <= 0:
         raise ValueError("--replay-step-s must be > 0")
 
+    
     logging.basicConfig(
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+        ],
     )
 
     run_loop(
