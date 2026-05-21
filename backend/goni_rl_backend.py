@@ -60,10 +60,10 @@ MYA_PVS = {
     "plane": "HD:CBREM:PLANE",           # PARA = 1, PERP = 2
     "phipol": "HD:CBREM:PHIPOL",         # 0 or 45
     "phi022": "HD:CBREM:PHI022",
-    "pitch_setpoint": "HD:GONI:X",
-    "pitch_readback": "HD:GONI:X.RBV",
-    "yaw_setpoint": "HD:GONI:Y",
-    "yaw_readback": "HD:GONI:Y.RBV",    
+    "pitch_setpoint": "HD:GONI:PITCH",
+    "pitch_readback": "HD:GONI:PITCH.RBV",
+    "yaw_setpoint": "HD:GONI:YAW",
+    "yaw_readback": "HD:GONI:YAW.RBV",    
     "radiator_name": "HD:GONI:RADIATOR_NAME",
 }
 
@@ -817,10 +817,10 @@ def run_loop(
                 
                 ORIENTATIONS[state.orientation_index],
                 
-                state.pitch_setpoint,
-                state.pitch_readback,
-                state.yaw_setpoint,
-                state.yaw_readback,
+                f"{state.pitch_setpoint:.6f}",
+                f"{state.pitch_readback:.6f}",
+                f"{state.yaw_setpoint:.6f}",
+                f"{state.yaw_readback:.6f}",
                 
                 req["delta_pitch_deg"],
                 req["delta_yaw_deg"],
