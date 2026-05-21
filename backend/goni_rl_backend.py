@@ -65,6 +65,7 @@ MYA_PVS = {
     "yaw_setpoint": "HD:GONI:YAW",
     "yaw_readback": "HD:GONI:YAW.RBV",    
     "radiator_name": "HD:GONI:RADIATOR_NAME",
+    "fit_chi2": "HD:CBREM:FIT_CHI2",    
 }
 
 WRITE_PVS = {
@@ -97,7 +98,7 @@ class LiveState:
     yaw_readback: float = 0.0    
     beam_tilt_pitch_deg: float = 0.0
     beam_tilt_yaw_deg: float = 0.0
-
+    fit_chi2: float
 
 class ActionHistory:
     """
@@ -397,6 +398,7 @@ def read_live_state(*, when: Optional[datetime] = None) -> LiveState:
     pitch_readback, pitch_rb_time, pitch_rb_age_h = read_mya_point(MYA_PVS["pitch_readback"], when=when)
     yaw_setpoint, yaw_sp_time, yaw_sp_age_h = read_mya_point(MYA_PVS["yaw_setpoint"], when=when)
     yaw_readback, yaw_rb_time, yaw_rb_age_h = read_mya_point(MYA_PVS["yaw_readback"], when=when)
+    fit_chi2, fit_chi2_time, fit_chi2_age_h = read_mya_point(MYA_PVS["fit_chi2"], when=when)    
     
     # Only require PLANE/PHIPOL to be valid when a diamond is actually in beam.
     if is_diamond_radiator_name(radiator_name):
@@ -450,6 +452,7 @@ def read_live_state(*, when: Optional[datetime] = None) -> LiveState:
         yaw_readback=yaw_readback,        
         beam_tilt_pitch_deg=0.0,
         beam_tilt_yaw_deg=0.0,
+        fit_chi2=fit_chi2,
     )
 
 
@@ -649,6 +652,7 @@ def run_loop(
     replay_end: Optional[datetime],
     replay_step_s: float,
     min_beam_current: float,
+    max_fit_chi2: float,
 ) -> None:
     model = PPO.load(model_path)
     history = ActionHistory()
@@ -673,6 +677,8 @@ def run_loop(
         "diamond_in_beam",
         "target",
         "peak",
+        "fit_chi2",
+        "good_fit",
         "dose",
         "beam_current",
         "enough_beam_current",
@@ -735,7 +741,9 @@ def run_loop(
 
             diamond_in_beam = is_diamond_radiator_name(state.radiator_name)
             enough_beam_current = state.beam_current >= min_beam_current
-            ai_enabled = diamond_in_beam and enough_beam_current
+            good_fit = state.fit_chi2 <= max_fit_chi2
+            
+            ai_enabled = (diamond_in_beam and enough_beam_current and good_fit_
             
             if ai_enabled:
                 obs = build_observation(
@@ -781,13 +789,15 @@ def run_loop(
                 prefix = "replay_time={0} ".format(query_time)
 
             logging.info(
-                "%sradiator=%s diamond_in_beam=%s target=%.3f peak=%.3f dose=%.3f beam current=%.3f enough_beam_current=%s rel_err=%.6g ori=%s "
+                "%sradiator=%s diamond_in_beam=%s target=%.3f peak=%.3f fit_chi2=%.4f good_fit=%s dose=%.3f beam current=%.3f enough_beam_current=%s rel_err=%.6g ori=%s "
                 "req_pitch=%+.7f deg req_yaw=%+.7f deg delta_c=%+.9e status=%d",
                 prefix,
                 state.radiator_name,
                 diamond_in_beam,
                 state.coherent_edge_Ei,
                 state.peak_energy,
+                state.fit_chi2,
+                good_fit,
                 0.0 if disable_dose_state else state.dose,
                 state.beam_current,
                 enough_beam_current,                
@@ -807,6 +817,9 @@ def run_loop(
                 
                 state.coherent_edge_Ei,
                 state.peak_energy,
+
+                state.fit_chi2,
+                good_fit,
                 
                 0.0 if disable_dose_state else state.dose,
                 
@@ -893,6 +906,8 @@ def parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
     parser.add_argument("--min-beam-current", type=float, default=100.0, help="Minimum beam current required before the AI is allowed to act, in nA",)
+    parser.add_argument("--max-fit-chi2", type=float, default=5.0, help="Maximum allowed fit chi2 before AI is inhibited",
+)
     return parser.parse_args()
 
 
@@ -931,7 +946,8 @@ def main() -> int:
         replay_start=replay_start,
         replay_end=replay_end,
         replay_step_s=args.replay_step_s,
-        min_beam_current=args.min_beam_current,        
+        min_beam_current=args.min_beam_current,
+        max_fit_chi2=args.max_fit_chi2,
     )
     return 0
 
