@@ -126,7 +126,7 @@ class LiveState:
     yaw_readback: float = 0.0
     beam_tilt_pitch_deg: float = 0.0
     beam_tilt_yaw_deg: float = 0.0
-    fit_chi2: float = 0.0
+    fit_chi2: Optional[float] = None  # None => FIT_CHI2 PV unavailable (e.g. old data)
 
 
 class ActionHistory:
@@ -334,7 +334,14 @@ def read_live_state(*, when: Optional[datetime] = None) -> LiveState:
     pitch_readback, _, _ = read_mya_point(MYA_PVS["pitch_readback"], when=when)
     yaw_setpoint, _, _ = read_mya_point(MYA_PVS["yaw_setpoint"], when=when)
     yaw_readback, _, _ = read_mya_point(MYA_PVS["yaw_readback"], when=when)
-    fit_chi2, _, _ = read_mya_point(MYA_PVS["fit_chi2"], when=when)
+    # FIT_CHI2 was only added recently, so it is absent from older MYA data.
+    # Treat a missing PV as "unavailable" (None) instead of failing the whole read.
+    try:
+        fit_chi2, _, _ = read_mya_point(MYA_PVS["fit_chi2"], when=when)
+    except RuntimeError:
+        fit_chi2 = None
+        logging.debug("FIT_CHI2 unavailable at %s; chi2 gate will be skipped",
+                      when or datetime.now())
 
     # Only require PLANE/PHIPOL to be valid when a diamond is actually in beam.
     if is_diamond_radiator_name(radiator_name):
@@ -632,7 +639,13 @@ def run_loop(
 
             diamond_in_beam = is_diamond_radiator_name(state.radiator_name)
             enough_beam_current = state.beam_current >= min_beam_current
-            good_fit = state.fit_chi2 <= max_fit_chi2
+            # Only gate on fit quality when the FIT_CHI2 PV is available. On older
+            # data the PV does not exist (state.fit_chi2 is None); in that case we
+            # do not block AI action on a check we cannot perform.
+            if state.fit_chi2 is None:
+                good_fit = True
+            else:
+                good_fit = state.fit_chi2 <= max_fit_chi2
 
             ai_enabled = diamond_in_beam and enough_beam_current and good_fit
 
@@ -665,14 +678,15 @@ def run_loop(
             write_heartbeat(heartbeat, dry_run=dry_run)
             write_status(status_code, dry_run=dry_run)
 
+            chi2_str = "n/a" if state.fit_chi2 is None else "{0:.4f}".format(state.fit_chi2)
             relative_error = abs(state.peak_energy - state.coherent_edge_Ei) / (state.coherent_edge_Ei + 1e-8)
             prefix = "replay_time={0} ".format(query_time) if replay_mode else ""
             logging.info(
-                "%sradiator=%s diamond_in_beam=%s target=%.3f peak=%.3f fit_chi2=%.4f good_fit=%s "
+                "%sradiator=%s diamond_in_beam=%s target=%.3f peak=%.3f fit_chi2=%s good_fit=%s "
                 "dose=%.3f beam_current=%.3f enough=%s rel_err=%.6g ori=%s "
                 "action=%+d req_pitch=%+.7f req_yaw=%+.7f delta_c=%+.9e status=%d",
                 prefix, state.radiator_name, diamond_in_beam, state.coherent_edge_Ei,
-                state.peak_energy, state.fit_chi2, good_fit,
+                state.peak_energy, chi2_str, good_fit,
                 0.0 if disable_dose_state else state.dose, state.beam_current, enough_beam_current,
                 relative_error, ORIENTATIONS[state.orientation_index],
                 int(req["action_dir"]), req["delta_pitch_deg"], req["delta_yaw_deg"],
