@@ -22,18 +22,18 @@ def delta_c_from_pitch_yaw(
     delta_h_deg, #pitch
     delta_v_deg, #yaw
     phi_deg,
-    beam_pitch_deg=0.0,
-    beam_yaw_deg=0.0,
+    delta_beam_pitch_deg=0.0,
+    delta_beam_yaw_deg=0.0,
 ):
     delta_h_rad = np.deg2rad(delta_h_deg)
     delta_v_rad = np.deg2rad(delta_v_deg)    
-    beam_h_rad  = np.deg2rad(beam_pitch_deg)
-    beam_v_rad  = np.deg2rad(beam_yaw_deg)
+    delta_beam_h_rad  = np.deg2rad(delta_beam_pitch_deg)
+    delta_beam_v_rad  = np.deg2rad(delta_beam_yaw_deg)
 
     phi_rad = np.deg2rad(phi_deg)
 
-    delta_h_eff_rad = delta_h_rad + beam_h_rad
-    delta_v_eff_rad = delta_v_rad + beam_v_rad
+    delta_h_eff_rad = delta_h_rad + delta_beam_h_rad
+    delta_v_eff_rad = delta_v_rad + delta_beam_v_rad
     
     delta_c_rad = delta_v_eff_rad * np.cos(phi_rad) + delta_h_eff_rad * np.sin(phi_rad)
     return delta_c_rad
@@ -94,9 +94,9 @@ class Goniometer:
         self.current_diamond_yaw = 0
 
         # 2.1 millidegrees of backlash in pitch
-        self.backlash_pitch = 2.1/1000.0
+        self.backlash_pitch = 0#2.1/1000.0
         # around 4.1 millidegrees of backlash in yaw
-        self.backlash_yaw = 4.1/1000.0
+        self.backlash_yaw = 0#4.1/1000.0
 
         # set rough initial goniometer values for each orientation 
         self.orientation_x = [0, 0, 0, 0]
@@ -356,6 +356,9 @@ class CoherentBremsstrahlungSimulator:
 
         self.phi_deg = ORIENTATION_TO_PHI[orientation]
 
+        self._prev_beam_pitch_deg = self.beam_state.beam_pitch_deg
+        self._prev_beam_yaw_deg   = self.beam_state.beam_yaw_deg
+        
         self.dose = DiamondDose(dose=accumulated_dose)
         self.peak_tracker = CoherentPeakTracker(
             base_peak_position=base_peak_position,
@@ -392,17 +395,23 @@ class CoherentBremsstrahlungSimulator:
         self.dose.add(delta_dose)
 
         self.beam_state.update_random()
+
+        #delta_beam_pitch_deg = self.beam_state.beam_pitch_deg - self._prev_beam_pitch_deg
+        #delta_beam_yaw_deg   = self.beam_state.beam_yaw_deg   - self._prev_beam_yaw_deg
         
         delta_c = delta_c_from_pitch_yaw(
             delta_h_deg=pitch_true_change_deg,
             delta_v_deg=yaw_true_change_deg,
             phi_deg=self.phi_deg,
-            beam_pitch_deg=self.beam_state.beam_pitch_deg,
-            beam_yaw_deg=self.beam_state.beam_yaw_deg
+            delta_beam_pitch_deg=delta_beam_pitch_deg,
+            delta_beam_yaw_deg=delta_beam_yaw_deg
         )
 
         peak = self.peak_tracker.update(delta_c_rad=delta_c, delta_dose=delta_dose)
 
+        self._prev_beam_pitch_deg = self.beam_state.beam_pitch_deg
+        self._prev_beam_yaw_deg   = self.beam_state.beam_yaw_deg
+        
         return delta_c, peak
     
 
